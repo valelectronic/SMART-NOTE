@@ -1,0 +1,1 @@
+ALTER TABLE "profile_settings" ADD COLUMN "class_link" text;

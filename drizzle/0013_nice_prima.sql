@@ -1,0 +1,1 @@
+ALTER TYPE "public"."school_type" ADD VALUE 'international';

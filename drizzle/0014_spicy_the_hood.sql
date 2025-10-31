@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding" ALTER COLUMN "teaching_level" SET DATA TYPE "public"."teaching_level" USING "teaching_level"::"public"."teaching_level";
