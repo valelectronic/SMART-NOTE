@@ -16,9 +16,6 @@ import {
 import { 
     Loader2, 
     X, 
-    BookA,
-    ClipboardList,
-    Layers3,
     CheckCircle,
     Plus,
     AlertCircle,
