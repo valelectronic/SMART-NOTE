@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { updateProfileSettingsController } from "@/controllers/settings.controller";
 import { signOut } from "@/lib/db/auth.client";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
-import { Link2, LogOut, Pencil, Loader2, CheckCircle2, Clock, ExternalLink } from "lucide-react";
+import { LogOut, Pencil, Loader2} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +26,12 @@ type ProfileProps = {
   fullName: string;
   fileUrl: string | null;
  
+}
+
+interface CloudinaryUploadResponse {
+  secure_url: string;
+  public_id: string; // Add other properties you might use later
+  // ...other Cloudinary fields
 }
 
 export default function ProfileCard({ profile }: { profile: ProfileProps | null }) {
@@ -107,7 +113,7 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
 
-      const res = await new Promise<any>((resolve, reject) => {
+      const res = await new Promise<CloudinaryUploadResponse>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", url);
         xhr.upload.onprogress = (e) => {

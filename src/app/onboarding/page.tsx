@@ -8,7 +8,7 @@ import { useState, useTransition } from "react"
 import { saveOnboardingAction } from "@/controllers/onboarding.controller"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { BookOpen, User, Settings, Loader2 } from "lucide-react"
+import { BookOpen, User, Settings} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import Loading from "../loading"
 

@@ -11,9 +11,6 @@ import {
 } from "@/components/ui/select";
 import nigeria from "@/data/nigeria.json";
 import { 
-    MapPin, 
-    Building, 
-    GraduationCap, 
     CheckCircle, 
     AlertCircle, 
     ArrowLeft, 
@@ -135,7 +132,7 @@ export default function PageTwoTeaching({ data, setData, onNext, onBack }: PageT
                         {showError('schoolState') && (
                             <div className="flex items-center gap-2 text-sm text-destructive">
                                 <AlertCircle className="h-4 w-4" />
-                                Please select your school's state
+                              Please select your school&apos;s state
                             </div>
                         )}
                     </div>

@@ -63,8 +63,7 @@ export async function updateProfileSettingsController(formData: FormData) {
       displayName: field(formData, "displayName"),
       socialLinks: field(formData, "socialLinks"),
     });
-
-    const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v != null && v !== "")) as Partial<InferInsertModel<typeof ProfileSettings>>;
+    const cleanData = Object.fromEntries(Object.entries(data).filter(([__, v]) => v != null && v !== "")) as Partial<InferInsertModel<typeof ProfileSettings>>;
 
     if (Object.keys(cleanData).length === 0)
       return { success: false, error: "No data provided to update" };

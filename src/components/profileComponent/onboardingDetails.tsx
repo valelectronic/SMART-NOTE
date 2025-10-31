@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, FormEvent } from "react";
+import { useState, useTransition, FormEvent, } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,14 +29,12 @@ import {
 import {
   BookOpen,
   Briefcase,
-  Globe,
   GraduationCap,
   Pencil,
   CheckCircle2,
   Loader2,
   FileText,
   ClipboardList,
-  Layers3,
   School
 } from "lucide-react";
 import { toast } from "sonner";
@@ -419,7 +418,7 @@ export default function OnboardingDetailsCard({ profile = {} as OnboardingProps[
 }
 
 // Enhanced DetailItem Component
-const DetailItem = ({ Icon, label, value }: { Icon: any, label: string, value: string }) => (
+const DetailItem = ({ Icon, label, value }: { Icon: React.ElementType, label: string, value: string }) => (
   <div className="flex items-start gap-3 p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
     <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
     <div className="min-w-0 flex-1">
