@@ -3,7 +3,7 @@
 
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { onboarding } from "@/lib/db/schema"
+import { onboarding,teachingLevelEnum } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
@@ -22,7 +22,9 @@ const OnboardingSchema = z.object({
     // Page 2 Fields (Location & Levels)
     schoolState: z.string().min(2, "School State is required"),
     localGovt: z.string().min(2, "Local Govt is required"),
-    teachingLevel: z.string().min(1, "At least one teaching level is required"), 
+    teachingLevel: z.enum(teachingLevelEnum.enumValues, {
+        message: "Teaching level is required and must be one of the specified values."
+    }),
 
     // Page 3 Fields (Subjects & Preferences)
     subjectTaught: z.string().min(1, "At least one subject is required"),
