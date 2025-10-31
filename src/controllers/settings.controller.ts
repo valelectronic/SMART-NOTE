@@ -6,6 +6,7 @@ import { onboarding, ProfileSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { InferInsertModel } from "drizzle-orm";
 import {
   ProfileSettingsSchema,
   OnboardingSchema,
@@ -63,7 +64,7 @@ export async function updateProfileSettingsController(formData: FormData) {
       socialLinks: field(formData, "socialLinks"),
     });
 
-    const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v != null && v !== ""));
+    const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v != null && v !== "")) as Partial<InferInsertModel<typeof ProfileSettings>>;
 
     if (Object.keys(cleanData).length === 0)
       return { success: false, error: "No data provided to update" };
@@ -109,7 +110,6 @@ export async function updateOnboardingAction(formData: FormData) {
       curriculumStandard: field(formData, "curriculumStandard"),
       preferredNoteFormat: field(formData, "preferredNoteFormat"),
     };
-
     const validatedPartialData = OnboardingSchema.partial().parse(rawData);
     const updatePayload = cleanObject({ ...validatedPartialData, updatedAt: new Date() });
     

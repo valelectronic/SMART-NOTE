@@ -29,13 +29,17 @@ export const OnboardingSchema = z.object({
   preferredNoteFormat: z.enum(preferredNoteFormatEnum.enumValues, { message: "Invalid note format." }),
 });
 
-// ✅ Helper function
+
+//  Helper function
 export const field = (fd: FormData, key: string) => {
-  const v = fd.get(key);
-  return v === null || v === "" ? undefined : (v as string);
+  const v = fd.get(key);
+  return v === null || v === "" ? undefined : (v as string);
 };
 
-// ✅ Cleaner for undefined/null
-export const cleanObject = <T extends Record<string, any>>(obj: T): Partial<T> => {
-  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && v !== null)) as Partial<T>;
+
+//  Replaced 'any' with the safer 'unknown' type.
+export const cleanObject = <T extends Record<string, unknown>>(obj: T): Partial<T> => {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined && v !== null)
+  ) as Partial<T>;
 };
