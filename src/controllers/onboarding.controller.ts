@@ -121,7 +121,7 @@ export async function saveOnboardingAction(formData: FormData) {
 
         return {
             success: true,
-            message: "Profile saved successfully. Proceed to file upload.",
+            message: "Profile saved successfully.",
             onboardingId,
         };
     } catch (error) {
