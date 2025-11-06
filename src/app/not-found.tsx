@@ -9,7 +9,7 @@ export default function NotFound() {
       <Frown size={64} className="text-amber-600 mb-4" />
       <h1 className="text-4xl font-bold text-gray-800 mb-2">Oops!</h1>
       <p className="text-lg text-gray-600 mb-6 font-bold">
-        Looks like this page is still learning new skills.
+        Looks like this page is still learning how to teach.
       </p>
       <button
         onClick={() => router.push('/')}

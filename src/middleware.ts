@@ -10,8 +10,8 @@ const protectedPrefixes = [
   '/profile-settings',
   '/admin/control-room',
   '/admin/post-approval',
-  '/community/following',
-  '/community/news-feed',
+  '/community/lessonNote',
+  '/community/schemeOfWork',
   '/community/profile',
   '/notifications',
   '/onboarding'
@@ -61,8 +61,8 @@ export const config = {
   matcher: [
     '/profile-settings/:path*',
     '/admin/settings/:path*',
-    '/community/following/:path*',
-    '/community/news-feed/:path*',
+    '/community/lessonNote/:path*',
+    '/community/schemeOfWork/:path*',
     '/community/profile/:path*',
     '/admin/control-room/:path*',
     '/admin/post-approval/:path*',

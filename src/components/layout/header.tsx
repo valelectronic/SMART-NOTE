@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut, useSession } from "@/lib/db/auth.client";
-import { Bell, Home, LogOut, Menu, Shield, Settings, User, X ,Users,Newspaper,BadgeCheck} from "lucide-react";
+import { Bell, Home, LogOut, Menu, Shield, Settings, User, X ,BadgeCheck, NotebookText, BookOpenText} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -21,12 +21,17 @@ import ThemeToggle from "../theme/ThemeToggle";
 
 import Image from "next/image";
 
+import { useUser } from "@/context/user.context";
+
 
 
 
 
 
 export default function Header() {
+
+  const { profile } = useUser();
+
   const router = useRouter();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
@@ -42,6 +47,19 @@ export default function Header() {
 
   const close = () => setDrawer(false);
 
+  // 1. Get the image URL from context, fall back to session, then default
+const avatarUrl = profile?.fileUrl?.trim() || user?.image || "/logo.jpg";
+
+
+// 2. Get initials from context name, fall back to session name, then default
+const initials = (profile?.fullName || user?.name)
+  ? (profile?.fullName || user?.name)
+      ?.split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+  : "U";
+
   /* ---------- Navigation items ---------- */
  const navItems = !isPending && user
   ? isAdmin
@@ -50,8 +68,8 @@ export default function Header() {
         { label: "Post Approval", href: "/admin/post-approval", icon: BadgeCheck },
       ]
     : [
-        { label: "News Feed", href: "/community/news-feed", icon: Newspaper },
-        { label: "Following", href: "/community/following", icon: Users },
+        { label: "lesson Note", href: "/community/lessonNote", icon: BookOpenText },
+        { label: "scheme of work", href: "/community/schemeOfWork", icon: NotebookText },
         { label: "Settings", href: "/profile-settings", icon: Settings },
         { label: "Profile", href: "/community/profile", icon: User },
         { label: "Notifications", href: "/notifications", icon: Bell },
@@ -64,12 +82,12 @@ export default function Header() {
     {/* Theme toggle - always visible */}
     <ThemeToggle />
 
-    {/* Notifications & Settings - only when logged in */}
+    {/* scheme of work - only when logged in */}
     {user && (
       <>
-        <Link href="/profile-settings" onClick={close} aria-label="Settings">
+        <Link href="/community/schemeOfWork" onClick={close} aria-label="Settings">
           <div className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 transition-colors">
-            <Settings className="h-5 w-5" />
+            <NotebookText className="h-5 w-5" />
           </div>
         </Link>
       </>
@@ -130,32 +148,35 @@ export default function Header() {
             <div className="hidden md:flex items-center gap-4">
                <ThemeToggle />
               {isPending ? null : user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="rounded-full h-9 w-9">
-                      <Avatar className="h-9 w-9 border border-border">
-                        {user.image ? (
-                          <AvatarImage src={user.image} alt={user.name ?? "User"} />
-                        ) : (
-                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                            {user.name ? user.name[0].toUpperCase() : "U"}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuLabel className="flex flex-col">
-                      <p className="font-medium text-sm">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Logout</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                {/** 👇 ONLY ONE CHILD ELEMENT ALLOWED */}
+                <Button variant="ghost" className="rounded-full h-9 w-9 p-0">
+                  <Avatar className="h-9 w-9 border border-border">
+                    <AvatarImage
+                      src={avatarUrl}
+                      alt={user.name ?? "User"}
+                    />
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="flex flex-col">
+                  <p className="font-medium text-sm">{user.name}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
               ) : (
                 <Link href="/login">
                   <Button className="bg-primary text-primary-foreground hover:bg-primary/90">Login</Button>
@@ -185,7 +206,7 @@ export default function Header() {
       {drawer && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={close} />
-          <div className="fixed top-0 left-0 h-full w-72 bg-background border-r border-border z-50 md:hidden flex flex-col">
+          <div className="fixed top-0 left-0 h-full w-80 bg-background border-r border-border z-50 md:hidden flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <span className="font-display font-bold text-lg text-foreground">Menu</span>
               <Button variant="ghost" size="icon" onClick={close} aria-label="Close menu">
@@ -204,16 +225,15 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {/* Avatar */}
           <Avatar className="h-12 w-12">
-            {user.image ? (
-              <AvatarImage src={user.image} alt={user.name ?? "User"} />
-            ) : (
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {user.name?.[0]?.toUpperCase() ?? "U"}
-              </AvatarFallback>
-            )}
-          </Avatar>
-
-          {/* Name + email */}
+          <AvatarImage 
+            src={avatarUrl} // Use the context-derived URL
+            alt={user.name ?? "User"} 
+          />
+          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+            {initials} 
+          </AvatarFallback>
+        </Avatar>
+          {/* Name*/}
           <div className="flex-1">
             <p className="font-semibold text-sm text-foreground">{user.name}</p>
           </div>

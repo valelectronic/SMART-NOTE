@@ -42,7 +42,8 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
   const [isUploading, setIsUploading] = useState(false);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [prevPublicId, setPrevPublicId] = useState<string | null>(null);
+  const [prevPublicId, setPrevPublicId] = useState<string | null>(null)
+
 
   useEffect(() => {
     if (profile?.fileUrl) {
@@ -90,13 +91,13 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
     }
   };
 
-  const MAX_FILE_SIZE = 1 * 1024 * 1024;
+  const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
   const handleUpload = async () => {
     if (!file) return toast.error("Please select a file first");
 
     if (file.size > MAX_FILE_SIZE) {
-      return toast.error("File size too large. Please upload under 1MB.");
+      return toast.error("File size too large. Please upload under 2MB.");
     }
 
     setIsUploading(true);
@@ -144,7 +145,7 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
 
       setAvatarUrl(res.secure_url);
       setPrevPublicId(getPublicId(res.secure_url));
-      toast.success("Profile picture updated! 🎉");
+      toast.success("Profile picture updated! ");
       setOpenUpload(false);
       setFile(null);
       setFilePreview(null);

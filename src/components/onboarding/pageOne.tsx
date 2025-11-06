@@ -77,7 +77,7 @@ export default function PageOnePersonal({
                             <Lightbulb className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                             <div>
                                 <p className="text-sm font-medium text-foreground mb-1">
-                                    Let**&apos;**s get you set up
+                                    Let&apos;s get you set up
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                     This helps us personalize your experience with relevant teaching resources.

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/header";
-import { Toaster } from "sonner";
-import { ThemeProvider } from "next-themes";
+import ClientProviders from "@/components/layout/clientProvider";
+import { ProfileData } from "@/context/user.context";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -20,20 +20,30 @@ export const metadata: Metadata = {
   description: "lets handle your lesson notes.",
 };
 
-export default function RootLayout({
+async function getInitialProfileData(): Promise<ProfileData> {
+  // Replace with your actual fetch logic later
+  return {
+    fullName: "Loading User",
+    fileUrl: null,
+  };
+}
+
+export default async function RootLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+}: {
+  children: React.ReactNode;
+}) {
+  const initialProfile = await getInitialProfileData();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${space.variable} font-sans bg-paper text-ink antialiased`}
       >
-        {/* ✅ Wrap entire app with ThemeProvider */}
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ClientProviders initialProfile={initialProfile}>
           <Header />
           <main className="mt-[64px] px-4">{children}</main>
-          <Toaster richColors position="top-right" />
-        </ThemeProvider>
+        </ClientProviders>
       </body>
     </html>
   );
