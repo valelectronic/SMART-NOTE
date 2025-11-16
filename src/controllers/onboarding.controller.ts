@@ -9,7 +9,6 @@ import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import z from "zod"
 
-// -------- VALIDATION SCHEMA (FIXED ZOD ENUM) --------
 const OnboardingSchema = z.object({
     // Page 1 Fields (Identity)
     fullName: z.string().min(1, "Full Name is required"),

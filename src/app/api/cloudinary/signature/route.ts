@@ -13,10 +13,14 @@ cloudinary.config({
 export async function POST(request:Request){
     try {
 
-        const {timestamp}  = await request.json()
+        const {timestamp,folder}  = await request.json()
+
+        if (!timestamp || !folder) {
+            return NextResponse.json({ error: "Missing required parameters (timestamp or folder)." }, { status: 400 });
+        }
         const signature = cloudinary.utils.api_sign_request({
             timestamp,
-            folder:"skillShare"
+            folder: folder
         }, process.env.CLOUDINARY_API_SECRET as string)
 
         return NextResponse.json({

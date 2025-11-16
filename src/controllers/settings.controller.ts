@@ -80,7 +80,7 @@ export async function updateProfileSettingsController(formData: FormData) {
     revalidatePath("/");
     revalidatePath("/profile-settings");
     revalidatePath("/community/profile");
-    revalidatePath("/news-feed");
+    revalidatePath("/community/lessonNote");
 
     return { success: true, data: record };
   } catch (err) {

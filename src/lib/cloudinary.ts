@@ -11,9 +11,14 @@ cloudinary.config({
 });
 
 
-export async function deleteFromCloudinary(publicId: string) {
+export async function deleteFromCloudinary(publicId: string,
+  // Default to 'image' but allow specific types like 'raw' for documents
+    resourceType: 'image' | 'raw' | 'video'| "auto" = 'auto'
+) {
   try {
-    const result = await cloudinary.uploader.destroy(publicId);
+    const result = await cloudinary.uploader.destroy(publicId,
+      { resource_type: resourceType }
+    );
 
     if (result.result === "not found") {
       return { success: true, message: "Image not found (already deleted)" };

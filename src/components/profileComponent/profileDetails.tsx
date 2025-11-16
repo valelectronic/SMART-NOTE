@@ -70,10 +70,11 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
 
   async function getCloudinarySignature(): Promise<CloudinarySignature> {
     const timestamp = Math.floor(Date.now() / 1000);
+    const folder = "skillShare";
     const res = await fetch("/api/cloudinary/signature", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ timestamp }),
+      body: JSON.stringify({ timestamp,folder }),
     });
     if (!res.ok) throw new Error("Failed to fetch signature");
     return res.json();
@@ -91,13 +92,14 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
     }
   };
 
-  const MAX_FILE_SIZE = 2 * 1024 * 1024;
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+  
 
   const handleUpload = async () => {
     if (!file) return toast.error("Please select a file first");
 
     if (file.size > MAX_FILE_SIZE) {
-      return toast.error("File size too large. Please upload under 2MB.");
+      return toast.error("File size too large. Please upload under 5MB.");
     }
 
     setIsUploading(true);

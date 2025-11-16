@@ -133,9 +133,10 @@ export const onboarding = pgTable("onboarding", {
   curriculumStandard: curriculumStandardEnum("curriculum_standard").notNull(),
   preferredNoteFormat: preferredNoteFormatEnum("preferred_note_format").notNull(),
 
-  //  Uploads
-  schemeOfWorkUrl: text("scheme_of_work_url"),
-  schemeExtracted: boolean("scheme_extracted").default(false),
+  //  SOW METADATA (Permanent Record for Frontend)
+  sowTitle: varchar("sow_title", { length: 255 }), 
+  sowUploadedAt: timestamp("sow_uploaded_at"), 
+  sowFileKey: text("sow_file_key"),
 
   //  Settings
   approvalStatus: approvalStatusEnum("approval_status").notNull().default("pending"),
@@ -173,31 +174,28 @@ export const schemeWeeks = pgTable("scheme_weeks", {
 
 // Replacement for schemeTopics - Focuses on the single lesson unit
 export const schemeSubTopics = pgTable("scheme_sub_topics", {
-    id: varchar("id", { length: 36 })
-        .primaryKey()
-        .default(sql`gen_random_uuid()`),
+    id: varchar("id", { length: 36 })
+        .primaryKey()
+        .default(sql`gen_random_uuid()`),
 
-    // NEW Foreign Key: Links to the WEEK, not directly to onboarding
-    schemeWeekId: varchar("scheme_week_id", { length: 36 })
-        .notNull()
-        .references(() => schemeWeeks.id, { onDelete: "cascade" }),
+    schemeWeekId: varchar("scheme_week_id", { length: 36 })
+        .notNull()
+        .references(() => schemeWeeks.id, { onDelete: "cascade" }),
 
-    topicTitle: text("topic_title").notNull(), // The main topic name
-    subTopicsDetail: text("sub_topics_detail"), // Granular details for AI prompt
-    
-    // Optional: Keep track of the original SOW source if needed
-    extractedFrom: text("extracted_from"), 
+    topicTitle: text("topic_title").notNull(), // CORE REQUIREMENT: Topic
+    // CHANGED: Renamed and set to NOT NULL for critical AI data
+    performanceObjectives: text("performance_objectives").notNull(), // CORE REQUIREMENT: Performance Objective
+    
+    extractedFrom: text("extracted_from"), 
 
-    // Status and tracking for this specific sub-topic/lesson
-    notesGenerated: boolean("notes_generated").default(false), // Did the AI create a note for this unit?
-    
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-        .defaultNow()
-        .$onUpdate(() => new Date())
-        .notNull(),
+    notesGenerated: boolean("notes_generated").default(false), 
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+        .defaultNow()
+        .$onUpdate(() => new Date())
+        .notNull(),
 });
-
 
 
 // language table 
