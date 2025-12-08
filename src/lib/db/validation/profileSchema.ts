@@ -40,6 +40,6 @@ export const field = (fd: FormData, key: string) => {
 //  Replaced 'any' with the safer 'unknown' type.
 export const cleanObject = <T extends Record<string, unknown>>(obj: T): Partial<T> => {
   return Object.fromEntries(
-    Object.entries(obj).filter(([__, v]) => v !== undefined && v !== null) // <-- Line 40
+    Object.entries(obj).filter(([, v]) => v !== undefined && v !== null) // <-- Line 40
   ) as Partial<T>; // Using 'as Partial<T>' is necessary here for correct type inference
 }

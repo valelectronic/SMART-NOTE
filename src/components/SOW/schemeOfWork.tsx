@@ -163,9 +163,15 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       
       router.push("/community/schemeOfWork/editScheme");
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if(error instanceof Error){
+        toast.error(error.message || "An unknown error occurred during upload.");
+      }
+      else{
+        toast.error("An unknown error occurred during upload.");
+      }
       console.error("Upload Error:", error);
-      toast.error(error.message || "An unknown error occurred during upload.");
+      
     } finally {
       setUploading(false);
       setProgress(0);
@@ -194,10 +200,16 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       } else {
         throw new Error(data.error || "Failed to delete scheme");
       }
-    } catch (error: any) {
-      console.error("Delete error:", error);
-      toast.error(error.message || "Failed to delete scheme");
-    } finally {
+      
+    } catch (error: unknown) {
+  console.error("Upload Error:", error);
+  if (error instanceof Error) {
+    toast.error(error.message);
+  } else {
+    toast.error("An unknown error occurred during upload.");
+  }
+}
+ finally {
       setDeleting(false);
     }
   };

@@ -68,7 +68,7 @@ export async function updateProfileSettingsController(formData: FormData) {
     });
 
     const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([_, v]) => v != null && v !== "")
+      Object.entries(data).filter(([, v]) => v != null && v !== "")
     ) as Partial<InferInsertModel<typeof ProfileSettings>>;
 
     if (Object.keys(cleanData).length === 0) {
