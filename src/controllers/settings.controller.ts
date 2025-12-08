@@ -13,6 +13,8 @@ import {
   field,
   cleanObject,
 } from "@/lib/db/validation/profileSchema";
+import { getPublicIdFromUrl } from "@/lib/utils";
+import { deleteFromCloudinary } from "@/lib/cloudinary";
 
 // ✅ Get profile data
 export async function getProfileController(userId: string) {
@@ -55,6 +57,7 @@ export async function updateProfileSettingsController(formData: FormData) {
   if (!session?.user) throw new Error("You must be logged in");
 
   try {
+    // 1) Parse incoming data
     const data = ProfileSettingsSchema.parse({
       fileUrl: field(formData, "fileUrl"),
       thumbnailUrl: field(formData, "thumbnailUrl"),
@@ -63,11 +66,29 @@ export async function updateProfileSettingsController(formData: FormData) {
       displayName: field(formData, "displayName"),
       socialLinks: field(formData, "socialLinks"),
     });
-    const cleanData = Object.fromEntries(Object.entries(data).filter(([__, v]) => v != null && v !== "")) as Partial<InferInsertModel<typeof ProfileSettings>>;
 
-    if (Object.keys(cleanData).length === 0)
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([_, v]) => v != null && v !== "")
+    ) as Partial<InferInsertModel<typeof ProfileSettings>>;
+
+    if (Object.keys(cleanData).length === 0) {
       return { success: false, error: "No data provided to update" };
+    }
 
+    // 2) Get old profile to compare
+   const oldProfile = await db.query.ProfileSettings.findFirst({
+  where: eq(ProfileSettings.userId, session.user.id),
+});
+    // 3) If fileUrl updated, delete previous image from Cloudinary
+    if (cleanData.fileUrl && oldProfile?.fileUrl) {
+      const oldPublicId = getPublicIdFromUrl(oldProfile.fileUrl);
+
+      if (oldPublicId) {
+        await deleteFromCloudinary(oldPublicId);
+      }
+    }
+
+    // 4) Save new profile data
     const [record] = await db
       .insert(ProfileSettings)
       .values({ userId: session.user.id, ...cleanData })
@@ -77,12 +98,14 @@ export async function updateProfileSettingsController(formData: FormData) {
       })
       .returning();
 
+    // 5) Revalidate pages
     revalidatePath("/");
     revalidatePath("/profile-settings");
     revalidatePath("/community/profile");
     revalidatePath("/community/lessonNote");
 
     return { success: true, data: record };
+
   } catch (err) {
     console.error("Profile update failed:", err);
     return { success: false, error: "Failed to update profile settings" };

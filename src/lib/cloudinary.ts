@@ -1,7 +1,5 @@
-// lib/cloudinary.ts
+"use server";
 
-
-"use server"
 import { v2 as cloudinary } from "cloudinary";
 
 cloudinary.config({
@@ -10,23 +8,32 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+/**
+ * Safely deletes ANY file from Cloudinary (raw, image, pdf, authenticated, private)
+ */
+export async function deleteFromCloudinary(publicId: string) {
+  const resourceTypes = ["image", "raw", "video", ];
 
-export async function deleteFromCloudinary(publicId: string,
-  // Default to 'image' but allow specific types like 'raw' for documents
-    resourceType: 'image' | 'raw' | 'video'| "auto" = 'auto'
-) {
-  try {
-    const result = await cloudinary.uploader.destroy(publicId,
-      { resource_type: resourceType }
-    );
+  for (const type of resourceTypes) {
+    console.log(`[Cloudinary] Trying delete -> ${publicId} (resource_type: ${type})`);
 
-    if (result.result === "not found") {
-      return { success: true, message: "Image not found (already deleted)" };
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: type,
+      type: "upload",
+    });
+
+    console.log(`[Cloudinary] Result (${type}):`, result);
+
+    // File deleted successfully
+    if (result.result === "ok") {
+      return { success: true, typeUsed: type, result };
     }
 
-    return { success: true, result };
-  } catch (err) {
-    console.error("Error deleting from Cloudinary:", err);
-    return { success: false, error: "Failed to delete image" };
+    // Continue trying others if "not found"
+    if (result.result === "not found") {
+      continue;
+    }
   }
+
+  return { success: false, error: "Asset not found or deletion failed" };
 }

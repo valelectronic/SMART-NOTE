@@ -25,3 +25,23 @@ export function formatDate(date:Date):string{
     day: 'numeric',
   }).format(date)
 }
+
+
+export function getPublicIdFromUrl(url: string) {
+  try {
+    const withoutQuery = url.split("?")[0];
+    const parts = withoutQuery.split("/");
+    const uploadIndex = parts.indexOf("upload");
+
+    if (uploadIndex === -1) return null;
+
+    const publicIdWithExt = parts.slice(uploadIndex + 1).join("/");
+    
+    // 💡 FIX: Strip the file extension for a clean public ID
+    // This assumes your database stores the public ID without the extension.
+    return publicIdWithExt.replace(/\.[^/.]+$/, ""); 
+  } catch {
+    return null;
+  }
+}
+

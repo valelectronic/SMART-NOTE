@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { updateProfileSettingsController } from "@/controllers/settings.controller";
 import { signOut } from "@/lib/db/auth.client";
-import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { LogOut, Pencil, Loader2} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -37,7 +36,7 @@ interface CloudinaryUploadResponse {
 export default function ProfileCard({ profile }: { profile: ProfileProps | null }) {
   const router = useRouter();
   const [openUpload, setOpenUpload] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(profile?.fileUrl ?? "/logo.jpg");
+  const [avatarUrl, setAvatarUrl] = useState(profile?.fileUrl ?? null);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -49,6 +48,8 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
     if (profile?.fileUrl) {
       setAvatarUrl(profile.fileUrl);
       setPrevPublicId(getPublicId(profile.fileUrl));
+    }else{
+      setAvatarUrl(null);
     }
     
   }, [profile]);
@@ -141,9 +142,15 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
       if (result?.success === false) throw new Error(result.error);
 
       // Delete previous avatar
-      if (prevPublicId) {
-        await deleteFromCloudinary(prevPublicId);
-      }
+    if (prevPublicId) {
+  await fetch("/api/cloudinary/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ publicId: prevPublicId ,
+      resourceType: 'image'
+    }),
+  });
+}
 
       setAvatarUrl(res.secure_url);
       setPrevPublicId(getPublicId(res.secure_url));
@@ -179,7 +186,7 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
         <DialogTrigger asChild>
           <div className="cursor-pointer relative">
             <Avatar className="w-24 h-24 sm:w-32 sm:h-32 ring-4 ring-background shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl">
-              <AvatarImage src={avatarUrl} alt="Profile picture" />
+              <AvatarImage src={avatarUrl ?? ""} alt="Profile picture" />
               <AvatarFallback className="text-lg font-semibold">
                 {profile?.fullName
                   ? profile.fullName
