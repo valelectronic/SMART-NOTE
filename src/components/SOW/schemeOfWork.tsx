@@ -159,7 +159,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       setScheme(newScheme);
       setFile(null);
       setOpenUpload(false);
-      toast.success("Scheme uploaded and processing started.");
+      toast.success("Scheme uploaded and extraction started.");
       
       router.push("/community/schemeOfWork/editScheme");
 
