@@ -10,7 +10,15 @@ cloudinary.config({
 
 /**
  * Safely deletes ANY file from Cloudinary (raw, image, pdf, authenticated, private)
+ * 
+ 
  */
+
+// 🚨 ADD THIS DEBUG BLOCK 🚨
+const CLOUD_SECRET_PREFIX = process.env.CLOUDINARY_API_SECRET?.substring(0, 4) || "MISSING";
+console.log(`[DEBUG] Cloudinary Secret Status (Prefix): ${CLOUD_SECRET_PREFIX}`);
+// 🚨 END DEBUG BLOCK 🚨
+
 export async function deleteFromCloudinary(publicId: string) {
   const resourceTypes = ["image", "raw", "video", ];
 
