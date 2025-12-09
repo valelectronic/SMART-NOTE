@@ -177,42 +177,37 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       setProgress(0);
     }
   };
+  
 
-  const handleDelete = async () => {
-
-    if (!scheme?.sowFileKey) {
-    return toast.error("No file key found to delete.");
-  }
-    setDeleting(true);
-    try {
-      // 1. Get the key
-    const keyToDelete = scheme.sowFileKey;
-      // 2. Pass the key in the URL as a query parameter (URL encoding is safe)
-    const res = await fetch(`/api/cloudinary/SOWdelete?key=${encodeURIComponent(keyToDelete)}`, {
-      method: "DELETE" 
-    });
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success("Scheme deleted successfully");
-        setScheme(null);
-        setOpenDelete(false);
-      } else {
-        throw new Error(data.error || "Failed to delete scheme");
-      }
-      
-    } catch (error: unknown) {
-  console.error("Upload Error:", error);
-  if (error instanceof Error) {
-    toast.error(error.message);
-  } else {
-    toast.error("An unknown error occurred during upload.");
+  // Delete Scheme Handler
+ const handleDelete = async () => {
+  if (!scheme?.sowFileKey) {
+    return toast.error("No file key found to delete.");
   }
-}
- finally {
-      setDeleting(false);
-    }
-  };
+
+  setDeleting(true);
+
+  try {
+    const res = await fetch(
+      `/api/cloudinary/SOWdelete?key=${encodeURIComponent(scheme.sowFileKey)}`,
+      { method: "DELETE" }
+    );
+
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error || "Failed to delete scheme");
+
+    toast.success("Scheme deleted successfully");
+    setScheme(null);
+    setOpenDelete(false);
+  } catch (error: unknown) {
+    console.error("Delete Error:", error);
+    toast.error(error instanceof Error ? error.message : "An unknown error occurred during deletion.");
+  } finally {
+    setDeleting(false);
+  }
+};
+
 
   if (loading) {
     return (
