@@ -107,6 +107,13 @@ export const teachingLevelEnum = pgEnum("teaching_level", [
   "sss_1_3",
 ]);
 
+export const sowProcessingStatusEnum = pgEnum("sow_processing_status", [
+    "pending",
+    "processing",
+    "complete",
+    "failed",
+]);
+
 // onboarding table
 export const onboarding = pgTable("onboarding", {
 
@@ -137,6 +144,10 @@ export const onboarding = pgTable("onboarding", {
   sowTitle: varchar("sow_title", { length: 255 }), 
   sowUploadedAt: timestamp("sow_uploaded_at"), 
   sowFileKey: text("sow_file_key"),
+// 🚨 NEW FIELDS FOR ASYNCHRONOUS JOB TRACKING 🚨
+  sowProcessingStatus: sowProcessingStatusEnum("sow_processing_status").default("complete").notNull(),
+  sowErrorMessage: text("sow_error_message"),
+
 
   //  Settings
   approvalStatus: approvalStatusEnum("approval_status").notNull().default("pending"),

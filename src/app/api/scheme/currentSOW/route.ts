@@ -24,6 +24,8 @@ export async function GET() {
                 sowFileKey: true,
                 sowTitle: true,
                 sowUploadedAt: true,
+                sowProcessingStatus: true,
+                sowErrorMessage: true,
             }
         });
 
@@ -33,6 +35,8 @@ export async function GET() {
                 title: currentScheme.sowTitle,
                 sowFileKey: currentScheme.sowFileKey,
                 uploadedAt: currentScheme.sowUploadedAt?.toISOString(),
+                processingStatus: currentScheme.sowProcessingStatus,
+                sowErrorMessage: currentScheme.sowErrorMessage,
             };
 
             return NextResponse.json({ success: true, scheme: schemeData });

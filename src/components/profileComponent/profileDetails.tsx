@@ -226,7 +226,7 @@ export default function ProfileCard({ profile }: { profile: ProfileProps | null 
                 className="min-w-0"
               />
               <p className="text-xs text-muted-foreground">
-                Maximum file size: 1MB. Recommended aspect ratio: 1:1.
+                Maximum file size: 10MB 
               </p>
             </div>
 

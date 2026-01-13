@@ -2,8 +2,8 @@
 
 import { ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "sonner";
 import { UserProvider, ProfileData } from "@/context/user.context";
+import { Toaster } from "sonner";
 
 interface ClientProvidersProps {
   children: ReactNode;
@@ -22,8 +22,13 @@ export default function ClientProviders({ children, initialProfile }: ClientProv
       {/* UserProvider wraps all children that need profile data */}
       <UserProvider initialData={initialProfile}>
         {children}
-        {/* Toast notifications */}
-        <Toaster richColors position="top-right" />
+         <Toaster
+          richColors
+          position="top-right"
+          closeButton
+          duration={4000}
+        />
+      
       </UserProvider>
     </ThemeProvider>
   );

@@ -8,16 +8,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-/**
- * Safely deletes ANY file from Cloudinary (raw, image, pdf, authenticated, private)
- * 
- 
- */
 
-// 🚨 ADD THIS DEBUG BLOCK 🚨
+//  ADD THIS DEBUG BLOCK 
 const CLOUD_SECRET_PREFIX = process.env.CLOUDINARY_API_SECRET?.substring(0, 4) || "MISSING";
 console.log(`[DEBUG] Cloudinary Secret Status (Prefix): ${CLOUD_SECRET_PREFIX}`);
-// 🚨 END DEBUG BLOCK 🚨
+
 
 export async function deleteFromCloudinary(publicId: string) {
   const resourceTypes = ["image", "raw", "video", ];
@@ -45,3 +40,4 @@ export async function deleteFromCloudinary(publicId: string) {
 
   return { success: false, error: "Asset not found or deletion failed" };
 }
+

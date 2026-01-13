@@ -5,6 +5,8 @@ import Header from "@/components/layout/header";
 import ClientProviders from "@/components/layout/clientProvider";
 import { ProfileData } from "@/context/user.context";
 
+
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -42,7 +44,9 @@ export default async function RootLayout({
       >
         <ClientProviders initialProfile={initialProfile}>
           <Header />
-          <main className="mt-[64px] px-4">{children}</main>
+          <main className="mt-[64px] px-4">{children}
+          </main>
+        
         </ClientProviders>
       </body>
     </html>

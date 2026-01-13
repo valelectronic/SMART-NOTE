@@ -4,61 +4,67 @@ import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-export async function uploadSchemeOfWorkController(formData: FormData) {
+export async function createSchemeRecordController(
+  body: { sowFileKey: string }
+) {
   try {
-    // --- 1. AUTH CHECK ---
+    // --- 1. AUTH ---
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) return { success: false, error: "Unauthorized" };
-    const userId = session.user.id;
-
-    // --- 2. VALIDATE INPUT ---
-    const sowFileKey = formData.get("sowFileKey")?.toString();
-
-    if (!sowFileKey) {
-      return { success: false, error: "Missing new file key (sowFileKey)" };
+    if (!session?.user) {
+      return { success: false, error: "Unauthorized" };
     }
 
-    // Extract clean title (filename without extension)
-    const fileName = sowFileKey.split("/").pop(); 
-    const sowTitle = fileName ? fileName.replace(/\.[^/.]+$/, "") : "Uploaded Scheme of Work";
+    const userId = session.user.id;
+
+    // --- 2. VALIDATION ---
+    const { sowFileKey } = body;
+
+    if (!sowFileKey) {
+      return { success: false, error: "Missing sowFileKey" };
+    }
+
+    // --- 3. TITLE ---
+    const fileName = sowFileKey.split("/").pop();
+    const sowTitle =
+      fileName?.replace(/\.[^/.]+$/, "") ?? "Uploaded Scheme of Work";
+
     const now = new Date();
 
-    // --- 3. FETCH USER ONBOARDING RECORD ---
+    // --- 4. FETCH USER RECORD ---
     const current = await db.query.onboarding.findFirst({
       where: eq(onboarding.userId, userId),
     });
-    if (!current) return { success: false, error: "User onboarding record not found" };
 
-    // --- 4. UPDATE DB ---
+    if (!current) {
+      return { success: false, error: "User onboarding record not found" };
+    }
+
+    // --- 5. SAVE METADATA ---
     const [updated] = await db
       .update(onboarding)
       .set({
-        sowFileKey,     // Save correct Cloudinary public_id
+        sowFileKey,
         sowTitle,
         sowUploadedAt: now,
+        sowProcessingStatus: "pending",
+        sowErrorMessage: null,
         updatedAt: now,
       })
       .where(eq(onboarding.userId, userId))
       .returning();
 
     if (!updated) {
-      return { success: false, error: "Failed to update SOW record" };
+      return { success: false, error: "Failed to save scheme" };
     }
-
-
-    // --- 6. START EXTRACTION JOB ---
-    const jobId = `job-${crypto.randomUUID()}`;
-    console.log(`[AI] Extraction started for ${sowFileKey} (User: ${userId}, Job: ${jobId})`);
 
     return {
       success: true,
-      message: "File saved. Extraction job started.",
-      sowTitle: updated.sowTitle,
-      sowFileKey: updated.sowFileKey,
-      jobId,
+      sowTitle,
+      sowFileKey,
+      processingStatus: "pending",
     };
   } catch (error) {
-    console.error("[ERROR] SOW processing failed:", error);
-    return { success: false, error: "Failed to process Scheme of Work upload." };
+    console.error("[SOW CREATE ERROR]", error);
+    return { success: false, error: "Failed to create scheme record" };
   }
 }
