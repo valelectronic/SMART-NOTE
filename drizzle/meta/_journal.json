@@ -120,6 +120,34 @@
       "when": 1765814142270,
       "tag": "0016_dry_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1768356108582,
+      "tag": "0017_wide_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1768359195817,
+      "tag": "0018_cuddly_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1768760265478,
+      "tag": "0019_crazy_snowbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1768942835491,
+      "tag": "0020_bouncy_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

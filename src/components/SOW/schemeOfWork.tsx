@@ -15,10 +15,11 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   Loader2, Upload, FileText, Calendar, Edit, Camera,
-  Trash2, AlertTriangle, Eye, CheckCircle
+  Trash2, AlertTriangle, CheckCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/app/loading";
+
 
 export interface Scheme {
   title: string
@@ -27,7 +28,6 @@ export interface Scheme {
   processingStatus: "pending" | "processing" | "complete" | "failed"
   sowErrorMessage?: string
 }
-
 
 export type CloudinarySignature = {
   signature: string
@@ -51,7 +51,6 @@ export async function getCloudinarySignature(): Promise<CloudinarySignature> {
   return res.json()
 }
 
-
 export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: string | null }) {
   const userId = initialUserId;
   const router = useRouter();
@@ -63,60 +62,59 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [navigating, setNavigating] = useState<"edit" | "view" | null>(null);
+  const [navigating, setNavigating] = useState(false);
   const [showProcessingRedirect, setShowProcessingRedirect] = useState(false);
   const [hasShownStatusToast, setHasShownStatusToast] = useState(false);
 
   const SOW_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
   // Fetch current scheme
- const fetchScheme = useCallback(
-  async (showLoader = false) => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
-
-    // 👇 only show loader when we ask for it
-    if (showLoader) setLoading(true);
-
-    try {
-      const res = await fetch("/api/scheme/currentSOW", {
-        cache: "no-store",
-      });
-      const data = await res.json();
-
-      if (data.success && data.scheme) {
-        setScheme({
-          title: data.scheme.sowTitle,
-          sowFileKey: data.scheme.sowFileKey,
-          uploadedAt: data.scheme.uploadedAt,
-          processingStatus: data.scheme.processingStatus,
-          sowErrorMessage: data.scheme.sowErrorMessage,
-        });
-      } else {
-        setScheme(null);
+  const fetchScheme = useCallback(
+    async (showLoader = false) => {
+      if (!userId) {
+        setLoading(false);
+        return;
       }
-    } catch {
-      setScheme(null);
-    } finally {
-      // 👇 only stop loading if we started it
-      if (showLoader) setLoading(false);
+
+      if (showLoader) setLoading(true);
+
+      try {
+        const res = await fetch("/api/scheme/currentSOW", {
+          cache: "no-store",
+        });
+        const data = await res.json();
+
+        if (data.success && data.scheme) {
+          setScheme({
+            title: data.scheme.sowTitle,
+            sowFileKey: data.scheme.sowFileKey,
+            uploadedAt: data.scheme.uploadedAt,
+            processingStatus: data.scheme.processingStatus,
+            sowErrorMessage: data.scheme.sowErrorMessage,
+          });
+        } else {
+          setScheme(null);
+        }
+      } catch {
+        setScheme(null);
+      } finally {
+        if (showLoader) setLoading(false);
+      }
+    },
+    [userId]
+  );
+
+  // Initial fetch
+  useEffect(() => {
+    if(userId){
+      fetchScheme(true);
     }
-  },
-  [userId]
-);
-// Initial fetch
- useEffect(() => {
-  if(userId){
-  fetchScheme(true); // Show loader on initial fetch
-  }
+  }, [fetchScheme, userId]);
 
-}, [fetchScheme, userId]);
-
-  // Navigate to edit or view page
-  const handleNavigate = useCallback((destination: "edit" | "view") => {
-    setNavigating(destination);
-    router.push(`/community/schemeOfWork/${destination === "edit" ? "editScheme" : "viewSow"}`);
+  // Navigate to edit page
+  const handleNavigateToEdit = useCallback(() => {
+    setNavigating(true);
+    router.push("/community/schemeOfWork/editScheme");
   }, [router]);
 
   // Handle camera click
@@ -169,10 +167,8 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
     setProgress(0);
     
     try {
-      // 1 Get Cloudinary signature
       const { signature, timestamp, apiKey } = await getCloudinarySignature();
 
-      // 2 Upload to Cloudinary
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       if (!cloudName) throw new Error("Cloudinary not configured");
       const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
@@ -209,7 +205,6 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         xhr.send(cloudForm);
       });
 
-      // 3 Save metadata to DB
       const res = await fetch("/api/scheme/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -222,7 +217,6 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
 
-      // 4 IMMEDIATELY update the UI with the new scheme
       const newScheme: Scheme = {
         title: result.sowTitle || file.name,
         sowFileKey: uploadResult.public_id,
@@ -234,7 +228,6 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       setFile(null);
       setOpenUpload(false);
       toast.success("Scheme uploaded successfully!");
-      // Show the processing redirect modal
       setShowProcessingRedirect(true);
       setHasShownStatusToast(false);
 
@@ -253,27 +246,24 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       duration: 4000,
     });
     setShowProcessingRedirect(false);
-    
-    // Redirect to dashboard or another useful page
     router.push("/");
   }, [router]);
 
-  // Check if processing is done periodically (less intrusive)
- useEffect(() => {
-  if (
-    scheme?.processingStatus === 'processing' ||
-    scheme?.processingStatus === 'pending'
-  ) {
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-      fetchScheme()
-      }
-    }, 30000);
+  // Check if processing is done periodically
+  useEffect(() => {
+    if (
+      scheme?.processingStatus === 'processing' ||
+      scheme?.processingStatus === 'pending'
+    ) {
+      const interval = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          fetchScheme()
+        }
+      }, 30000);
 
-    return () => clearInterval(interval);
-  }
-}, [scheme?.processingStatus, fetchScheme]);
-
+      return () => clearInterval(interval);
+    }
+  }, [scheme?.processingStatus, fetchScheme]);
 
   // Show processing complete notification
   useEffect(() => {
@@ -282,7 +272,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         duration: 8000,
         action: {
           label: "Edit Now",
-          onClick: () => handleNavigate("edit"),
+          onClick: () => handleNavigateToEdit(),
         },
       });
       setHasShownStatusToast(true);
@@ -292,7 +282,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       });
       setHasShownStatusToast(true);
     }
-  }, [scheme?.processingStatus, scheme?.sowErrorMessage, handleNavigate, hasShownStatusToast]);
+  }, [scheme?.processingStatus, scheme?.sowErrorMessage, handleNavigateToEdit, hasShownStatusToast]);
 
   // Handle delete
   const handleDelete = useCallback(async () => {
@@ -333,6 +323,8 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
     );
   }
 
+  const isProcessingComplete = scheme?.processingStatus === 'complete';
+
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto">
@@ -340,7 +332,11 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-3">Scheme of Work</h1>
           <p className="text-muted-foreground text-sm sm:text-lg">
-            {scheme ? "Manage your current scheme" : "Upload your scheme to get started"}
+            {!scheme 
+              ? "Upload your scheme to get started"
+              : isProcessingComplete
+              ? "Edit your scheme to customize it"
+              : "Processing your scheme"}
           </p>
         </div>
 
@@ -348,27 +344,36 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
           <Card className="w-full">
             <CardHeader className="pb-4 sm:pb-6 px-4 sm:px-6">
               <div className="flex items-start gap-3 sm:gap-4">
+                {/* Status Icon */}
                 <div className={`p-2 sm:p-3 rounded-lg ${
-                  scheme.processingStatus === 'complete' 
-                    ? 'bg-primary/10' 
+                  isProcessingComplete
+                    ? 'bg-green-500/10'
                     : scheme.processingStatus === 'failed'
                     ? 'bg-destructive/10'
                     : 'bg-primary/10'
                 }`}>
-                  {scheme.processingStatus === 'complete' ? (
-                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                  {isProcessingComplete ? (
+                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                   ) : scheme.processingStatus === 'failed' ? (
                     <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
                   ) : (
                     <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary animate-spin" />
                   )}
                 </div>
+
                 <div className="flex-1 space-y-1 sm:space-y-2 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                     <CardTitle className="text-lg sm:text-2xl truncate">{scheme.title}</CardTitle>
+                    
+                    {/* Status Badge */}
+                    {isProcessingComplete && (
+                      <span className="px-2 py-1 text-xs bg-green-500/10 text-green-700 rounded-full w-fit font-medium">
+                        ✓ Ready to Edit
+                      </span>
+                    )}
                     {scheme.processingStatus === 'processing' && (
                       <span className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-full w-fit">
-                        Processing
+                        Processing...
                       </span>
                     )}
                     {scheme.processingStatus === 'pending' && (
@@ -376,7 +381,13 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
                         Queued
                       </span>
                     )}
+                    {scheme.processingStatus === 'failed' && (
+                      <span className="px-2 py-1 text-xs bg-destructive/10 text-destructive rounded-full w-fit">
+                        Failed
+                      </span>
+                    )}
                   </div>
+
                   <CardDescription className="flex items-center gap-1 sm:gap-2 text-xs sm:text-base">
                     <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                     <span className="truncate">
@@ -388,74 +399,69 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
             </CardHeader>
 
             <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
-              {/* Action Buttons */}
-              <div className="bg-muted/50 rounded-lg sm:rounded-xl p-4 sm:p-6 border">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  <Button
-                    onClick={() => handleNavigate("edit")}
-                    className="h-10 sm:h-12 gap-2 sm:gap-3 text-sm sm:text-base"
-                    size="lg"
-                    disabled={navigating === "edit" || scheme.processingStatus !== 'complete'}
-                  >
-                    {navigating === "edit" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                        <span>Loading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Edit className="h-4 w-4 sm:h-5 sm:w-5" />
-                        <span className="hidden xs:inline">Edit Scheme</span>
-                        <span className="xs:hidden">Edit</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleNavigate("view")}
-                    className="h-10 sm:h-12 gap-2 sm:gap-3 text-sm sm:text-base"
-                    size="lg"
-                    disabled={navigating === "view" || scheme.processingStatus !== 'complete'}
-                  >
-                    {navigating === "view" ? (
-                      <>
-                        <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                        <span>Loading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
-                        <span className="hidden xs:inline">View Scheme</span>
-                        <span className="xs:hidden">View</span>
-                      </>
-                    )}
-                  </Button>
+              {/* Action Button - ONLY Edit Scheme */}
+              {isProcessingComplete && (
+                <div className="bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl p-5 sm:p-7 border-2">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-1">
+                        <p className="font-medium text-green-900 dark:text-green-100">
+                          Processing Complete
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-200">
+                          Your scheme is ready. Click below to review and customize it.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <Button
+                      onClick={handleNavigateToEdit}
+                      className="w-full h-14 gap-3 text-base font-semibold shadow-lg"
+                      size="lg"
+                      disabled={navigating}
+                    >
+                      {navigating ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Opening Editor...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="h-5 w-5" />
+                          <span>Edit Scheme</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Status Message */}
-              {scheme.processingStatus !== 'complete' && (
-                <div className={`p-3 sm:p-4 rounded-lg border ${
+              {/* Processing Status Message */}
+              {!isProcessingComplete && (
+                <div className={`p-4 rounded-xl border-2 ${
                   scheme.processingStatus === 'failed' 
-                    ? 'bg-destructive/10 border-destructive/20 text-destructive' 
-                    : 'bg-primary/10 border-primary/20 text-primary'
+                    ? 'bg-destructive/10 border-destructive/20' 
+                    : 'bg-primary/10 border-primary/20'
                 }`}>
-                  <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="flex items-start gap-3">
                     {scheme.processingStatus === 'failed' ? (
-                      <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 flex-shrink-0" />
+                      <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                     ) : (
-                      <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin mt-0.5 flex-shrink-0" />
+                      <Loader2 className="h-5 w-5 text-primary animate-spin mt-0.5 flex-shrink-0" />
                     )}
-                    <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                      <p className="font-medium text-sm sm:text-base">
+                    <div className="space-y-1 min-w-0">
+                      <p className={`font-semibold ${
+                        scheme.processingStatus === 'failed' ? 'text-destructive' : 'text-primary'
+                      }`}>
                         {scheme.processingStatus === 'failed' 
                           ? 'Processing Failed' 
-                          : 'Processing in Background'}
+                          : 'Processing Your Scheme...'}
                       </p>
-                      <p className="text-xs sm:text-sm">
+                      <p className="text-sm text-muted-foreground">
                         {scheme.processingStatus === 'failed' 
-                          ? scheme.sowErrorMessage || 'Please delete and try again.'
-                          : 'Your scheme is being processed. You will receive a notification when ready.'}
+                          ? scheme.sowErrorMessage || 'An error occurred. Please delete and try again.'
+                          : 'We\'re extracting and organizing your content. You\'ll receive a notification when ready.'}
                       </p>
                     </div>
                   </div>
@@ -463,8 +469,8 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
               )}
 
               {/* Delete Section */}
-              <div className="pt-4 sm:pt-6 border-t space-y-3 sm:space-y-4">
-                <div className="space-y-1 sm:space-y-2">
+              <div className="pt-4 sm:pt-6 border-t space-y-3">
+                <div className="space-y-1">
                   <h3 className="text-base sm:text-lg font-semibold">Manage Scheme</h3>
                   <p className="text-muted-foreground text-xs sm:text-sm">
                     Delete your current scheme to upload a new one
@@ -473,340 +479,207 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
                 <Button
                   variant="outline"
                   onClick={() => setOpenDelete(true)}
-                  className="gap-2 sm:gap-3 h-9 sm:h-11 text-sm sm:text-base text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
-                  size="lg"
+                  className="gap-2 h-10 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
                   disabled={deleting}
                 >
                   {deleting ? (
-                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Trash2 className="h-4 w-4" />
                   )}
-                  <span className="hidden xs:inline">Delete Scheme</span>
-                  <span className="xs:hidden">Delete</span>
+                  <span>Delete Scheme</span>
                 </Button>
               </div>
             </CardContent>
           </Card>
         ) : (
-          /* Empty State */
+          /* Empty State - No Scheme Uploaded */
           <Card className="w-full text-center border-2 border-dashed">
-            <CardContent className="pt-8 sm:pt-12 pb-10 sm:pb-16 px-4 sm:px-8">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 rounded-full bg-muted flex items-center justify-center">
-                <FileText className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" />
+            <CardContent className="pt-12 pb-16 px-8">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
+                <FileText className="h-10 w-10 text-muted-foreground" />
               </div>
 
-              <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">No Scheme of Work</h3>
-              <p className="text-muted-foreground text-sm sm:text-lg mb-6 sm:mb-8 max-w-md mx-auto leading-relaxed">
-                Get started by uploading your scheme of work.
+              <h3 className="text-2xl font-bold mb-3">No Scheme of Work</h3>
+              <p className="text-muted-foreground text-lg mb-8 max-w-md mx-auto">
+                Get started by uploading your Scheme of Work document.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button
                   onClick={() => setOpenUpload(true)}
-                  className="gap-2 sm:gap-3 h-10 sm:h-12 text-sm sm:text-base"
+                  className="gap-2 h-12 text-base"
                   size="lg"
                 >
-                  <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span className="hidden xs:inline">Upload File</span>
-                  <span className="xs:hidden">Upload</span>
+                  <Upload className="h-5 w-5" />
+                  <span>Upload File</span>
                 </Button>
                 <Button
                   variant="outline"
-                  className="gap-2 sm:gap-3 h-10 sm:h-12 text-sm sm:text-base"
+                  className="gap-2 h-12 text-base"
                   size="lg"
                   onClick={handleCameraClick}
                 >
-                  <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span className="hidden xs:inline">Use Camera</span>
-                  <span className="xs:hidden">Camera</span>
+                  <Camera className="h-5 w-5" />
+                  <span>Use Camera</span>
                 </Button>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Upload Dialog - Mobile Responsive */}
-       <Dialog open={openUpload} onOpenChange={setOpenUpload}>
-      <DialogContent
-        className="
-          w-full
-          max-w-[95vw]
-          sm:max-w-xl
-          lg:max-w-3xl
-          rounded-2xl
-          p-0
-        "
-      >
-        {/* Header */}
-        <div className="border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/10 p-2 rounded-lg">
-              <Upload className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <DialogTitle className="text-xl">Upload Scheme</DialogTitle>
+        {/* Upload Dialog */}
+        <Dialog open={openUpload} onOpenChange={setOpenUpload}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Upload Scheme of Work</DialogTitle>
               <DialogDescription>
-                PDF, Word or Image (Max 10MB)
+                Upload your scheme document (PDF, DOCX, or Image - Max 10MB)
               </DialogDescription>
-            </div>
-          </div>
-        </div>
+            </DialogHeader>
 
-        {/* Body */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
-          {/* Upload Area */}
-          <label
-            htmlFor="scheme-file"
-            className="
-              lg:col-span-2
-              flex flex-col items-center justify-center
-              border-2 border-dashed
-              rounded-xl
-              p-10
-              cursor-pointer
-              transition
-              hover:border-primary
-              bg-muted/30
-            "
-          >
-            <Upload className="h-8 w-8 text-muted-foreground mb-3" />
-            <p className="font-medium">Drag & drop your file here</p>
-            <p className="text-sm text-muted-foreground">
-              or click to browse
-            </p>
+            <div className="space-y-4">
+              <label
+                htmlFor="scheme-file"
+                className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer hover:border-primary transition"
+              >
+                <Upload className="h-12 w-12 text-muted-foreground mb-3" />
+                <p className="font-medium mb-1">Click to browse or drag & drop</p>
+                <p className="text-sm text-muted-foreground">PDF, DOCX, JPG, or PNG</p>
 
-            <Input
-              id="scheme-file"
-              type="file"
-              accept=".pdf,.docx,.jpg,.png"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              disabled={uploading || !!scheme}
-              className="hidden"
-            />
-          </label>
+                <Input
+                  id="scheme-file"
+                  type="file"
+                  accept=".pdf,.docx,.jpg,.png"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
 
-          {/* File Preview */}
-          <div className="rounded-xl border p-4 space-y-3">
-            <p className="font-medium text-sm">Selected File</p>
-
-            {file ? (
-              <div className="flex items-start gap-3">
-                <FileText className="h-6 w-6 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {Math.round(file.size / 1024)} KB
-                  </p>
+              {file && (
+                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                  <FileText className="h-8 w-8 text-muted-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{file.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No file selected
-              </p>
-            )}
+              )}
 
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCameraClick}
-              disabled={uploading || !!scheme}
-              className="w-full gap-2"
-            >
-              <Camera className="h-4 w-4" />
-              Use Camera
-            </Button>
-          </div>
-        </div>
-
-        {/* Progress */}
-        {uploading && (
-          <div className="px-6 pb-4">
-            <div className="flex justify-between text-sm mb-1">
-              <span>Uploading</span>
-              <span>{progress}%</span>
+              {uploading && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Uploading...</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-2 bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )}
 
-        {/* Footer */}
-        <div className="border-t px-6 py-4 flex flex-col-reverse sm:flex-row justify-end gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setOpenUpload(false)}
-            disabled={uploading}
-          >
-            Cancel
-          </Button>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenUpload(false)} disabled={uploading}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpload} disabled={!file || uploading}>
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload & Process
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-        <Button
-        onClick={handleUpload}
-        disabled={!file || uploading || !!scheme}
-        className="gap-2"
-      >
-        {uploading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="h-4 w-4" />
-        )}
-        {uploading ? "Uploading…" : "Upload & Process"}
-      </Button>
-
-        </div>
-      </DialogContent>
-    </Dialog>
-
-        {/* Processing Redirect Dialog - Fixed Mobile Responsiveness */}
+        {/* Processing Redirect Dialog */}
         <Dialog open={showProcessingRedirect} onOpenChange={setShowProcessingRedirect}>
-          <DialogContent className="max-w-md rounded-xl w-[95vw] sm:w-full mx-2 sm:mx-0">
-            <DialogHeader className="space-y-2 sm:space-y-3 px-4 sm:px-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <DialogTitle className="text-lg sm:text-xl">Processing Started!</DialogTitle>
-              </div>
-              <DialogDescription className="text-sm sm:text-base">
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Processing Started!</DialogTitle>
+              <DialogDescription>
                 Your scheme is being processed in the background.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 sm:space-y-4 py-2 px-4 sm:px-6">
-              <div className="bg-primary/10 p-3 sm:p-4 rounded-lg border border-primary/20">
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary animate-spin mt-0.5 flex-shrink-0" />
-                  <div className="space-y-1 min-w-0">
-                    <p className="font-medium text-sm sm:text-base text-primary">What's happening?</p>
-                    <ul className="text-xs sm:text-sm text-primary/90 space-y-1 list-disc list-inside pl-1">
-                      <li className="break-words">We are extracting text from your document</li>
+            <div className="space-y-4 py-4">
+              <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
+                <div className="flex gap-3">
+                  <Loader2 className="h-5 w-5 text-primary animate-spin mt-0.5 flex-shrink-0" />
+                  <div className="space-y-2">
+                    <p className="font-medium text-primary">What's happening?</p>
+                    <ul className="text-sm text-primary/90 space-y-1 list-disc list-inside">
+                      <li>Extracting text from your document</li>
                       <li>Processing may take 30-60 seconds</li>
-                      <li>You'll receive a notification when ready</li>
+                      <li>You will get a notification when ready</li>
                     </ul>
                   </div>
                 </div>
               </div>
-
-              <div className="space-y-2 sm:space-y-3">
-                <p className="font-medium text-sm sm:text-base">While you wait, you can:</p>
-                <div className="grid grid-cols-1 gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      router.push("/");
-                      setShowProcessingRedirect(false);
-                    }}
-                    className="justify-start h-auto py-2 sm:py-3 hover:bg-primary/5 text-left"
-                  >
-                    <div className="w-full">
-                      <p className="font-medium text-sm sm:text-base">Browse Dashboard</p>
-                      <p className="text-xs text-muted-foreground">Check your teaching resources</p>
-                    </div>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      router.push("/community/lessonNote");
-                      setShowProcessingRedirect(false);
-                    }}
-                    className="justify-start h-auto py-2 sm:py-3 hover:bg-primary/5 text-left"
-                  >
-                    <div className="w-full">
-                      <p className="font-medium text-sm sm:text-base">Plan Lessons</p>
-                      <p className="text-xs text-muted-foreground">Check your lesson notes</p>
-                    </div>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      router.push("/profile-settings");
-                      setShowProcessingRedirect(false);
-                    }}
-                    className="justify-start h-auto py-2 sm:py-3 hover:bg-primary/5 text-left"
-                  >
-                    <div className="w-full">
-                      <p className="font-medium text-sm sm:text-base">Update Profile</p>
-                      <p className="text-xs text-muted-foreground">Manage your account</p>
-                    </div>
-                  </Button>
-                </div>
-              </div>
             </div>
 
-            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6">
-              <Button
-                onClick={navigateWhileProcessing}
-                className="w-full gap-2 h-10 sm:h-11 text-sm sm:text-base"
-              >
+            <DialogFooter>
+              <Button onClick={navigateWhileProcessing} className="w-full">
                 Go to Dashboard
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation Dialog - Mobile Responsive */}
+        {/* Delete Confirmation Dialog */}
         <Dialog open={openDelete} onOpenChange={setOpenDelete}>
-  <DialogContent className="max-w-lg rounded-xl">
-    <DialogHeader className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="bg-destructive/10 p-2 rounded-full">
-          <AlertTriangle className="h-6 w-6 text-destructive" />
-        </div>
-        <DialogTitle className="text-xl text-destructive">
-          Delete Scheme of Work
-        </DialogTitle>
-      </div>
-      <DialogDescription className="text-base">
-        This action cannot be undone.
-      </DialogDescription>
-    </DialogHeader>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-destructive/10 p-2 rounded-full">
+                  <AlertTriangle className="h-6 w-6 text-destructive" />
+                </div>
+                <DialogTitle className="text-destructive">Delete Scheme</DialogTitle>
+              </div>
+              <DialogDescription>
+                This action cannot be undone. All extracted data will be permanently deleted.
+              </DialogDescription>
+            </DialogHeader>
 
-    {/* Warning Box */}
-    <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 space-y-2">
-      <p className="font-medium">
-        You are about to permanently delete:
-      </p>
-      <p className="text-sm text-muted-foreground truncate">
-        {scheme?.title}
-      </p>
-      <p className="text-sm text-destructive">
-        All extracted data will be lost.
-      </p>
-    </div>
+            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4">
+              <p className="font-medium mb-1">You are about to delete:</p>
+              <p className="text-sm truncate">{scheme?.title}</p>
+            </div>
 
-    <DialogFooter className="flex justify-end gap-3 pt-4">
-      <Button
-        variant="outline"
-        onClick={() => setOpenDelete(false)}
-        disabled={deleting}
-      >
-        Cancel
-      </Button>
-
-      <Button
-        variant="destructive"
-        onClick={handleDelete}
-        disabled={deleting}
-        className="gap-2"
-      >
-        {deleting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Deleting…
-          </>
-        ) : (
-          <>
-            <Trash2 className="h-4 w-4" />
-            Delete Permanently
-          </>
-        )}
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setOpenDelete(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Permanently
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

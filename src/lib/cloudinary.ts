@@ -40,4 +40,3 @@ export async function deleteFromCloudinary(publicId: string) {
 
   return { success: false, error: "Asset not found or deletion failed" };
 }
-

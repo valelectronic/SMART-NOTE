@@ -144,9 +144,15 @@ export const onboarding = pgTable("onboarding", {
   sowTitle: varchar("sow_title", { length: 255 }), 
   sowUploadedAt: timestamp("sow_uploaded_at"), 
   sowFileKey: text("sow_file_key"),
-// 🚨 NEW FIELDS FOR ASYNCHRONOUS JOB TRACKING 🚨
+//  NEW FIELDS FOR ASYNCHRONOUS JOB TRACKING 
   sowProcessingStatus: sowProcessingStatusEnum("sow_processing_status").default("complete").notNull(),
   sowErrorMessage: text("sow_error_message"),
+
+//  RAW EXTRACTED TEXT (CRITICAL FOR AI + PARSING)
+      sowExtractedText: text("sow_extracted_text"),
+
+       sowEdited: boolean("sow_edited").default(false),
+
 
 
   //  Settings
@@ -183,29 +189,32 @@ export const schemeWeeks = pgTable("scheme_weeks", {
         .notNull(),
 });
 
-// Replacement for schemeTopics - Focuses on the single lesson unit
+// Updated for flexibility with optional content
 export const schemeSubTopics = pgTable("scheme_sub_topics", {
-    id: varchar("id", { length: 36 })
-        .primaryKey()
-        .default(sql`gen_random_uuid()`),
+    id: varchar("id", { length: 36 })
+        .primaryKey()
+        .default(sql`gen_random_uuid()`),
 
-    schemeWeekId: varchar("scheme_week_id", { length: 36 })
-        .notNull()
-        .references(() => schemeWeeks.id, { onDelete: "cascade" }),
+    schemeWeekId: varchar("scheme_week_id", { length: 36 })
+        .notNull()
+        .references(() => schemeWeeks.id, { onDelete: "cascade" }),
 
-    topicTitle: text("topic_title").notNull(), // CORE REQUIREMENT: Topic
-    // CHANGED: Renamed and set to NOT NULL for critical AI data
-    performanceObjectives: text("performance_objectives").notNull(), // CORE REQUIREMENT: Performance Objective
-    
-    extractedFrom: text("extracted_from"), 
+    topicTitle: text("topic_title").notNull(), 
+    
+    //  REMOVED .notNull() to allow empty content for breaks/exams
+    topicContent: text("topic_content"), 
+    
+    performanceObjectives: text("performance_objectives"), 
+    
+    extractedFrom: text("extracted_from"), 
 
-    notesGenerated: boolean("notes_generated").default(false), 
-    
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-        .defaultNow()
-        .$onUpdate(() => new Date())
-        .notNull(),
+    notesGenerated: boolean("notes_generated").default(false), 
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+        .defaultNow()
+        .$onUpdate(() => new Date())
+        .notNull(),
 });
 
 

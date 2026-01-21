@@ -26,6 +26,7 @@ export async function GET() {
                 sowUploadedAt: true,
                 sowProcessingStatus: true,
                 sowErrorMessage: true,
+                sowExtractedText: true,
             }
         });
 
@@ -37,6 +38,7 @@ export async function GET() {
                 uploadedAt: currentScheme.sowUploadedAt?.toISOString(),
                 processingStatus: currentScheme.sowProcessingStatus,
                 sowErrorMessage: currentScheme.sowErrorMessage,
+                extractedText: currentScheme.sowExtractedText,
             };
 
             return NextResponse.json({ success: true, scheme: schemeData });

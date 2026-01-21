@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding" ADD COLUMN "sow_extracted_text" text;

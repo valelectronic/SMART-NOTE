@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { processSchemeOfWork } from "@/jobs/processSOW";
 
 export async function createSchemeRecordController(
   body: { sowFileKey: string }
@@ -56,6 +57,9 @@ export async function createSchemeRecordController(
     if (!updated) {
       return { success: false, error: "Failed to save scheme" };
     }
+
+    // Trigger background job to process SOW
+    processSchemeOfWork(userId, sowFileKey);
 
     return {
       success: true,

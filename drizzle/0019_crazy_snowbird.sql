@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding" ADD COLUMN "sow_edited" boolean DEFAULT false;

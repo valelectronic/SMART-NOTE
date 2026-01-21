@@ -1,0 +1,1 @@
+ALTER TABLE "scheme_sub_topics" ALTER COLUMN "topic_content" DROP NOT NULL;
