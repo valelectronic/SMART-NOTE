@@ -1,3 +1,7 @@
+
+export const maxDuration = 60; // Sets timeout to 60 seconds
+export const dynamic = 'force-dynamic';
+
 import { createSchemeRecordController } from "@/controllers/SOW.controller";
 import { NextResponse } from "next/server";
 

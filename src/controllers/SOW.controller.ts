@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { processSchemeOfWork } from "@/jobs/processSOW";
+import { waitUntil } from "@vercel/functions";
 
 export async function createSchemeRecordController(
   body: { sowFileKey: string }
@@ -59,7 +60,7 @@ export async function createSchemeRecordController(
     }
 
     // Trigger background job to process SOW
-    processSchemeOfWork(userId, sowFileKey);
+    waitUntil(processSchemeOfWork(userId, sowFileKey));
 
     return {
       success: true,
