@@ -4,13 +4,15 @@ export const dynamic = 'force-dynamic';
 
 import { createSchemeRecordController } from "@/controllers/SOW.controller";
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 
 export async function POST(req: Request) {
   try {
     // ✅ READ JSON
     const body = await req.json();
 
-    const result = await createSchemeRecordController(body);
+    const headersList = await headers();
+    const result = await createSchemeRecordController(body, headersList);
 
     return NextResponse.json(result, {
       status: result.success ? 200 : 400,

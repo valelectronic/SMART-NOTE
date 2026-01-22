@@ -4,14 +4,15 @@ import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { processSchemeOfWork } from "@/jobs/processSOW";
-import { waitUntil } from "@vercel/functions";
+import { after } from "next/server";
 
 export async function createSchemeRecordController(
-  body: { sowFileKey: string }
+  body: { sowFileKey: string },
+  headersList: Headers
 ) {
   try {
     // --- 1. AUTH ---
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await auth.api.getSession({ headers: headersList });
     if (!session?.user) {
       return { success: false, error: "Unauthorized" };
     }
@@ -60,7 +61,11 @@ export async function createSchemeRecordController(
     }
 
     // Trigger background job to process SOW
-    waitUntil(processSchemeOfWork(userId, sowFileKey));
+    after(async () => {
+       console.log("Starting background SOW processing...");
+       await processSchemeOfWork(userId, sowFileKey);
+    });
+
 
     return {
       success: true,
