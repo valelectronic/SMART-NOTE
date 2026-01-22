@@ -1,5 +1,4 @@
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -12,7 +11,7 @@ export async function createSchemeRecordController(
 ) {
   try {
     // --- 1. AUTH ---
-    const session = await auth.api.getSession({ headers: headersList });
+    const session = await auth.api.getSession({ headers: headersList});
     if (!session?.user) {
       return { success: false, error: "Unauthorized" };
     }
@@ -65,7 +64,7 @@ export async function createSchemeRecordController(
        console.log("Starting background SOW processing...");
        await processSchemeOfWork(userId, sowFileKey);
     });
-
+    
 
     return {
       success: true,
