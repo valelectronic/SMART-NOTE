@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/app/loading";
-
+  import imageCompression from 'browser-image-compression';
 
 export interface Scheme {
   title: string
@@ -143,42 +143,42 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
 
   // Handle file upload
   const handleUpload = useCallback(async () => {
-    if (scheme) {
-      toast.error("You already have a Scheme. Delete it first.");
-      return;
+  if (!file) {
+    toast.error("Please select a file.");
+    return;
+  }
+
+  setUploading(true);
+  setProgress(0);
+  
+  try {
+    let fileToUpload = file;
+
+    // ✅ STEP 1: COMPRESS IF IT'S AN IMAGE
+    if (file.type.startsWith('image/')) {
+      const compressionOptions = {
+        maxSizeMB: 1,          // Aim for ~1MB (perfect for AI reading)
+        maxWidthOrHeight: 2048, // High enough for text clarity
+        useWebWorker: true,
+      };
+      
+      toast.info("Optimizing image for extraction...");
+      fileToUpload = await imageCompression(file, compressionOptions);
     }
 
-    if (!file) {
-      toast.error("Please select a file.");
-      return;
-    }
+    // ✅ STEP 2: GET SIGNATURE
+    const { signature, timestamp, apiKey } = await getCloudinarySignature();
 
-    if (!userId) {
-      toast.error("Session expired. Please log in.");
-      return;
-    }
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
 
-    if (file.size > SOW_MAX_FILE_SIZE) {
-      toast.error("File must be under 10MB.");
-      return;
-    }
-
-    setUploading(true);
-    setProgress(0);
-    
-    try {
-      const { signature, timestamp, apiKey } = await getCloudinarySignature();
-
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-      if (!cloudName) throw new Error("Cloudinary not configured");
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
-
-      const cloudForm = new FormData();
-      cloudForm.append("file", file);
-      cloudForm.append("api_key", apiKey);
-      cloudForm.append("timestamp", String(timestamp));
-      cloudForm.append("signature", signature);
-      cloudForm.append("folder", "sow_uploads");
+    const cloudForm = new FormData();
+    // Use the potentially compressed fileToUpload
+    cloudForm.append("file", fileToUpload); 
+    cloudForm.append("api_key", apiKey);
+    cloudForm.append("timestamp", String(timestamp));
+    cloudForm.append("signature", signature);
+    cloudForm.append("folder", "sow_uploads");
 
       const uploadResult = await new Promise<{
         secure_url: string;
