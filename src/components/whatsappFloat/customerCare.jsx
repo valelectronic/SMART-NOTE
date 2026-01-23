@@ -15,10 +15,10 @@ export default function CustomerCare() {
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
   return (
-    <div className="fixed left-0 top-1/2 -translate-y-1/2 z-[9999] flex flex-row items-center gap-3 pointer-events-none">
+    <div className="fixed right-0 top-1/2 -translate-y-1/2 z-[9999] flex flex-row-reverse items-center gap-3 pointer-events-none">
       {/* Info Card - Shows when button is clicked */}
       {isOpen && (
-        <Card className="ml-20 md:ml-24 w-72 shadow-2xl animate-in slide-in-from-left-5 duration-300 pointer-events-auto border-2">
+        <Card className="mr-16 md:mr-24 w-72 shadow-2xl animate-in slide-in-from-right-5 duration-300 pointer-events-auto border-2">
           <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-primary/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -64,14 +64,14 @@ export default function CustomerCare() {
       {/* Main Customer Care Button with Avatar */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative group pointer-events-auto ml-0"
+        className="relative group pointer-events-auto mr-0"
         aria-label="Contact customer support"
       >
         {/* Glowing effect */}
         <div className="absolute inset-0 bg-primary rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse pointer-events-none" />
         
-        {/* Avatar Container */}
-        <div className="relative w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 group-hover:scale-110 border-4 border-white overflow-hidden">
+        {/* Avatar Container - Smaller on mobile */}
+        <div className="relative w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 group-hover:scale-110 border-2 md:border-4 border-white overflow-hidden">
           {/* Customer Service Representative SVG */}
           <svg 
             viewBox="0 0 100 100" 
@@ -153,8 +153,8 @@ export default function CustomerCare() {
           </svg>
         </div>
 
-        {/* Online indicator with pulse */}
-        <div className="absolute top-1 right-1 w-4 h-4 md:w-5 md:h-5 bg-green-500 border-3 border-white rounded-full animate-pulse pointer-events-none shadow-lg">
+        {/* Online indicator with pulse - Smaller on mobile */}
+        <div className="absolute top-0 right-0 md:top-1 md:right-1 w-3 h-3 md:w-4 md:h-4 bg-green-500 border-2 border-white rounded-full animate-pulse pointer-events-none shadow-lg">
           <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75"></span>
         </div>
       </button>
