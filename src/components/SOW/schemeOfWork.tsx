@@ -1,61 +1,90 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Loader2, Upload, FileText, Calendar, Edit, Camera,
-  Trash2, AlertTriangle, CheckCircle
-} from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { RefreshCw, Wifi } from "lucide-react";
 import { toast } from "sonner";
-import Loading from "@/app/loading";
-  import imageCompression from 'browser-image-compression';
+import { SchemeCard } from "@/components/SOW/scheme/SchemeCard";
+import { EmptyState } from "@/components/SOW/scheme/EmptyState";
+import { UploadDialog, ProcessingDialog, DeleteDialog } from "@/components/SOW/scheme/SchemeDialog";
+
+// ✅ Dynamic import for image compression
+let imageCompressionModule: any = null;
+
+async function getImageCompression() {
+  if (!imageCompressionModule) {
+    imageCompressionModule = await import('browser-image-compression');
+  }
+  return imageCompressionModule.default;
+}
 
 export interface Scheme {
-  title: string
-  sowFileKey: string
-  uploadedAt: string
-  processingStatus: "pending" | "processing" | "complete" | "failed"
-  sowErrorMessage?: string
+  title: string;
+  sowFileKey: string;
+  uploadedAt: string;
+  processingStatus: "pending" | "processing" | "complete" | "failed";
+  sowErrorMessage?: string;
+  isManuallyAdded?: boolean;
 }
 
 export type CloudinarySignature = {
-  signature: string
-  timestamp: number
-  apiKey: string
+  signature: string;
+  timestamp: number;
+  apiKey: string;
 }
 
-export async function getCloudinarySignature(): Promise<CloudinarySignature> {
-  const timestamp = Math.floor(Date.now() / 1000)
+let cachedSignature: { data: CloudinarySignature; expires: number } | null = null;
 
+export async function getCloudinarySignature(): Promise<CloudinarySignature> {
+  const now = Date.now();
+  
+  if (cachedSignature && cachedSignature.expires > now) {
+    return cachedSignature.data;
+  }
+
+  const timestamp = Math.floor(now / 1000);
   const res = await fetch("/api/cloudinary/signature", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      timestamp,
-      folder: "sow_uploads",
-    }),
-  })
+    body: JSON.stringify({ timestamp, folder: "sow_uploads" }),
+  });
 
-  if (!res.ok) throw new Error("Failed to fetch upload signature")
-  return res.json()
+  if (!res.ok) throw new Error("Failed to fetch upload signature");
+  
+  const data = await res.json();
+  cachedSignature = { data, expires: now + 300000 };
+  
+  return data;
+}
+
+function SchemeCardSkeleton() {
+  return (
+    <Card className="w-full shadow-xl border-2 animate-pulse">
+      <CardHeader className="pb-3 sm:pb-4 px-3 sm:px-4">
+        <div className="flex items-start gap-2 sm:gap-3">
+          <div className="p-2 rounded-xl bg-muted w-10 h-10 sm:w-12 sm:h-12" />
+          <div className="flex-1 space-y-2">
+            <div className="h-5 sm:h-6 bg-muted rounded w-40 sm:w-48" />
+            <div className="h-3 sm:h-4 bg-muted rounded w-28 sm:w-32" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 px-3 sm:px-4">
+        <div className="h-24 sm:h-32 bg-muted rounded-xl" />
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: string | null }) {
-  const userId = initialUserId;
+  const [userId] = useState(initialUserId);
   const router = useRouter();
+  
   const [scheme, setScheme] = useState<Scheme | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
+  const [hasFetched, setHasFetched] = useState(false);
   const [openUpload, setOpenUpload] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -65,59 +94,216 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
   const [navigating, setNavigating] = useState(false);
   const [showProcessingRedirect, setShowProcessingRedirect] = useState(false);
   const [hasShownStatusToast, setHasShownStatusToast] = useState(false);
+  const [compressingImage, setCompressingImage] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
+  
+  const uploadAbortControllerRef = useRef<AbortController | null>(null);
+  const fetchAbortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  const isFetchingRef = useRef(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const SOW_MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-  // Fetch current scheme
+  // ✅ Enhanced fetchScheme with aggressive cache busting
   const fetchScheme = useCallback(
-    async (showLoader = false) => {
-      if (!userId) {
-        setLoading(false);
-        return;
+    async (options: { showLoader?: boolean; isRetry?: boolean } = {}) => {
+      if (!userId || isFetchingRef.current) return;
+
+      if (fetchAbortControllerRef.current) {
+        fetchAbortControllerRef.current.abort();
       }
 
-      if (showLoader) setLoading(true);
+      const controller = new AbortController();
+      fetchAbortControllerRef.current = controller;
+      isFetchingRef.current = true;
+
+      if (options.showLoader) {
+        setLoading(true);
+      }
 
       try {
-        const res = await fetch("/api/scheme/currentSOW", {
+        // ✅ Aggressive cache busting
+        const res = await fetch(`/api/scheme/currentSOW?t=${Date.now()}`, {
           cache: "no-store",
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
         });
+        
+        if (!res.ok) throw new Error('Failed to fetch scheme');
+        
         const data = await res.json();
 
-        if (data.success && data.scheme) {
+        if (!isMountedRef.current) return;
+
+        if (data.success && data.scheme && data.scheme.processingStatus !== null) {
           setScheme({
             title: data.scheme.sowTitle,
             sowFileKey: data.scheme.sowFileKey,
             uploadedAt: data.scheme.uploadedAt,
             processingStatus: data.scheme.processingStatus,
             sowErrorMessage: data.scheme.sowErrorMessage,
+            isManuallyAdded: data.scheme.isManuallyAdded || false,
           });
         } else {
           setScheme(null);
         }
-      } catch {
-        setScheme(null);
+        setNetworkError(false);
+      } catch (error: any) {
+        if (error.name === 'AbortError') return;
+        
+        console.error("Fetch scheme error:", error);
+        
+        if (isMountedRef.current) {
+          setNetworkError(true);
+          
+          if (!options.isRetry && retryTimeoutRef.current === null) {
+            retryTimeoutRef.current = setTimeout(() => {
+              if (isMountedRef.current) {
+                retryTimeoutRef.current = null;
+                fetchScheme({ isRetry: true });
+              }
+            }, 2000);
+          }
+        }
       } finally {
-        if (showLoader) setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false);
+          setHasFetched(true);
+        }
+        
+        isFetchingRef.current = false;
+        if (fetchAbortControllerRef.current === controller) {
+          fetchAbortControllerRef.current = null;
+        }
       }
     },
     [userId]
   );
 
-  // Initial fetch
+  // ✅ PRODUCTION-SAFE MOUNT EFFECT - FIXED
   useEffect(() => {
-    if(userId){
-      fetchScheme(true);
-    }
-  }, [fetchScheme, userId]);
+    isMountedRef.current = true;
 
-  // Navigate to edit page
+    // ✅ Production-Safe Sync Check with sessionStorage
+    const syncKey = "sow_last_sync";
+    const lastSync = sessionStorage.getItem(syncKey);
+    const now = Date.now();
+
+    // If last hard sync was more than 2 seconds ago, do a fresh refresh
+    if (!lastSync || now - parseInt(lastSync) > 2000) {
+      console.log("🔄 Cache refresh triggered - router.refresh()");
+      sessionStorage.setItem(syncKey, now.toString());
+      router.refresh();
+    }
+
+    // Reset states
+    setHasFetched(false);
+    setScheme(null);
+    setLoading(true);
+
+    // ✅ FIXED: Only ONE fetch call with small delay for router.refresh to complete
+    let fetchTimer: NodeJS.Timeout | undefined;
+
+    if (userId) {
+      fetchTimer = setTimeout(() => {
+        if (isMountedRef.current) {
+          fetchScheme({ showLoader: true });
+        }
+      }, 100);
+    } else {
+      setLoading(false);
+      setHasFetched(true);
+    }
+
+    return () => {
+      isMountedRef.current = false;
+      if (fetchTimer) clearTimeout(fetchTimer);
+      if (fetchAbortControllerRef.current) fetchAbortControllerRef.current.abort();
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, [userId, router, fetchScheme]);
+
+  // ✅ Visibility handling with throttle
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && userId && hasFetched && isMountedRef.current && !isFetchingRef.current) {
+        const syncKey = "sow_last_sync";
+        const lastSync = sessionStorage.getItem(syncKey);
+        const now = Date.now();
+
+        // Only refresh if last sync was more than 2 seconds ago
+        if (!lastSync || now - parseInt(lastSync) > 2000) {
+          console.log("👁️ Tab visible - refreshing data");
+          sessionStorage.setItem(syncKey, now.toString());
+          router.refresh();
+          
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              fetchScheme({ showLoader: false });
+            }
+          }, 100);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [userId, fetchScheme, hasFetched, router]);
+
+  // ✅ Polling for processing status
+  useEffect(() => {
+    const shouldPoll = 
+      scheme?.processingStatus === 'processing' || 
+      scheme?.processingStatus === 'pending';
+    
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    
+    if (!shouldPoll) return;
+
+    console.log("⏱️ Starting poll for processing status");
+    
+    pollIntervalRef.current = setInterval(() => {
+      if (document.visibilityState === "visible" && isMountedRef.current && !isFetchingRef.current) {
+        fetchScheme({ showLoader: false });
+      }
+    }, 15000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [scheme?.processingStatus, fetchScheme]);
+
   const handleNavigateToEdit = useCallback(() => {
+    router.prefetch("/community/schemeOfWork/editScheme");
     setNavigating(true);
     router.push("/community/schemeOfWork/editScheme");
   }, [router]);
 
-  // Handle camera click
+  const handleNavigateToView = useCallback(() => {
+    router.prefetch("/community/schemeOfWork/viewScheme");
+    setNavigating(true);
+    router.push("/community/schemeOfWork/viewScheme");
+  }, [router]);
+
+  const handleNavigateToManualAdd = useCallback(() => {
+    router.prefetch("/community/schemeOfWork/editScheme");
+    router.push("/community/schemeOfWork/editScheme");
+  }, [router]);
+
   const handleCameraClick = useCallback(() => {
     if (typeof window === 'undefined') return;
 
@@ -137,48 +323,56 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       }
       input.remove();
     };
+    
+    input.oncancel = () => {
+      input.remove();
+    };
 
     input.click();
   }, []);
 
-  // Handle file upload
   const handleUpload = useCallback(async () => {
-  if (!file) {
-    toast.error("Please select a file.");
-    return;
-  }
-
-  setUploading(true);
-  setProgress(0);
-  
-  try {
-    let fileToUpload = file;
-
-    // ✅ STEP 1: COMPRESS IF IT'S AN IMAGE
-    if (file.type.startsWith('image/')) {
-      const compressionOptions = {
-        maxSizeMB: 1,          // Aim for ~1MB (perfect for AI reading)
-        maxWidthOrHeight: 2048, // High enough for text clarity
-        useWebWorker: true,
-      };
-      
-      toast.info("Optimizing image for extraction...");
-      fileToUpload = await imageCompression(file, compressionOptions);
+    if (!file) {
+      toast.error("Please select a file.");
+      return;
     }
 
-    // ✅ STEP 2: GET SIGNATURE
-    const { signature, timestamp, apiKey } = await getCloudinarySignature();
+    setUploading(true);
+    setProgress(0);
+    setNetworkError(false);
+    
+    try {
+      let fileToUpload = file;
 
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+      if (file.type.startsWith('image/')) {
+        setCompressingImage(true);
+        toast.info("Optimizing image...", { duration: 2000 });
+        
+        const imageCompression = await getImageCompression();
+        fileToUpload = await imageCompression(file, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 2048,
+          useWebWorker: true,
+        });
+        
+        setCompressingImage(false);
+      }
 
-    const cloudForm = new FormData();
-    // Use the potentially compressed fileToUpload
-    cloudForm.append("file", fileToUpload); 
-    cloudForm.append("api_key", apiKey);
-    cloudForm.append("timestamp", String(timestamp));
-    cloudForm.append("signature", signature);
-    cloudForm.append("folder", "sow_uploads");
+      const { signature, timestamp, apiKey } = await getCloudinarySignature();
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+
+      const cloudForm = new FormData();
+      cloudForm.append("file", fileToUpload); 
+      cloudForm.append("api_key", apiKey);
+      cloudForm.append("timestamp", String(timestamp));
+      cloudForm.append("signature", signature);
+      cloudForm.append("folder", "sow_uploads");
+
+      const abortController = new AbortController();
+      uploadAbortControllerRef.current = abortController;
+      
+      const uploadTimeout = setTimeout(() => abortController.abort(), 60000);
 
       const uploadResult = await new Promise<{
         secure_url: string;
@@ -187,6 +381,11 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         const xhr = new XMLHttpRequest();
         xhr.open("POST", uploadUrl);
 
+        abortController.signal.addEventListener('abort', () => {
+          xhr.abort();
+          reject(new Error("Upload timeout. Check your connection."));
+        });
+
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             setProgress(Math.round((e.loaded / e.total) * 100));
@@ -194,16 +393,23 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         };
 
         xhr.onload = () => {
+          clearTimeout(uploadTimeout);
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(JSON.parse(xhr.responseText));
           } else {
-            reject(new Error("Cloudinary upload failed"));
+            reject(new Error("Upload failed"));
           }
         };
 
-        xhr.onerror = () => reject(new Error("Upload network error"));
+        xhr.onerror = () => {
+          clearTimeout(uploadTimeout);
+          reject(new Error("Network error"));
+        };
+
         xhr.send(cloudForm);
       });
+
+      clearTimeout(uploadTimeout);
 
       const res = await fetch("/api/scheme/create", {
         method: "POST",
@@ -222,464 +428,271 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         sowFileKey: uploadResult.public_id,
         uploadedAt: new Date().toISOString(),
         processingStatus: result.processingStatus || 'pending',
+        isManuallyAdded: false,
       };
 
       setScheme(newScheme);
       setFile(null);
       setOpenUpload(false);
-      toast.success("Scheme uploaded successfully!");
-      setShowProcessingRedirect(true);
       setHasShownStatusToast(false);
+      toast.success("Scheme uploaded!");
+      setShowProcessingRedirect(true);
+
+      // Refresh after upload
+      setTimeout(() => {
+        fetchScheme({ showLoader: false });
+      }, 1000);
 
     } catch (error: unknown) {
-      console.error("SOW Upload Error:", error);
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+      console.error("Upload error:", error);
+      setNetworkError(true);
+      toast.error(error instanceof Error ? error.message : "Upload failed", {
+        duration: 5000,
+      });
     } finally {
       setUploading(false);
+      setCompressingImage(false);
       setProgress(0);
+      uploadAbortControllerRef.current = null;
     }
-  }, [scheme, file, userId]);
+  }, [file, fetchScheme]);
 
-  // Redirect user while processing
+  const handleCancelUpload = useCallback(() => {
+    if (uploadAbortControllerRef.current) {
+      uploadAbortControllerRef.current.abort();
+      toast.info("Upload cancelled");
+    }
+  }, []);
+
   const navigateWhileProcessing = useCallback(() => {
-    toast.info("We'll notify you when processing is complete!", {
-      duration: 4000,
-    });
+    toast.info("We'll notify you when ready!", { duration: 3000 });
     setShowProcessingRedirect(false);
     router.push("/");
   }, [router]);
 
-  // Check if processing is done periodically
-  useEffect(() => {
-    if (
-      scheme?.processingStatus === 'processing' ||
-      scheme?.processingStatus === 'pending'
-    ) {
-      const interval = setInterval(() => {
-        if (document.visibilityState === "visible") {
-          fetchScheme()
-        }
-      }, 30000);
-
-      return () => clearInterval(interval);
-    }
-  }, [scheme?.processingStatus, fetchScheme]);
-
-  // Show processing complete notification
   useEffect(() => {
     if (scheme?.processingStatus === 'complete' && !hasShownStatusToast) {
-      toast.success("Scheme processing complete! Ready to edit.", {
-        duration: 8000,
+      toast.success("Scheme ready!", {
+        duration: 6000,
         action: {
           label: "Edit Now",
-          onClick: () => handleNavigateToEdit(),
+          onClick: handleNavigateToEdit,
         },
       });
       setHasShownStatusToast(true);
     } else if (scheme?.processingStatus === 'failed' && !hasShownStatusToast) {
-      toast.error(`Processing failed: ${scheme.sowErrorMessage || "Unknown error"}. Please try again.`, {
-        duration: 8000,
+      toast.error(scheme.sowErrorMessage || "Processing failed", {
+        duration: 6000,
       });
       setHasShownStatusToast(true);
     }
-  }, [scheme?.processingStatus, scheme?.sowErrorMessage, handleNavigateToEdit, hasShownStatusToast]);
+  }, [scheme?.processingStatus, scheme?.sowErrorMessage, hasShownStatusToast, handleNavigateToEdit]);
 
-  // Handle delete
-  const handleDelete = useCallback(async () => {
+  const handleDeleteScheme = useCallback(async () => {
     if (!scheme?.sowFileKey) {
-      toast.error("No file key found to delete.");
+      toast.error("No file to delete");
       return;
     }
 
     setDeleting(true);
 
     try {
-      const res = await fetch(
-        `/api/cloudinary/SOWdelete?key=${encodeURIComponent(scheme.sowFileKey)}`,
-        { method: "DELETE" }
-      );
+      if (!scheme.isManuallyAdded) {
+        await fetch(
+          `/api/cloudinary/SOWdelete?key=${encodeURIComponent(scheme.sowFileKey)}`,
+          { method: "DELETE" }
+        );
+      }
 
-      const data = await res.json();
-
-      if (!data.success) throw new Error(data.error || "Failed to delete scheme");
+      const dbRes = await fetch("/api/scheme/deleteScheme", { method: "DELETE" });
+      const dbData = await dbRes.json();
+      
+      if (!dbData.success) throw new Error(dbData.error);
 
       setScheme(null);
+      setHasFetched(true);
       setOpenDelete(false);
       setHasShownStatusToast(false);
-      toast.success("Scheme deleted successfully");
+      setNetworkError(false);
+      setFile(null);
+      toast.success("Deleted");
+
     } catch (error: unknown) {
-      console.error("Delete Error:", error);
+      console.error("Delete error:", error);
       toast.error(error instanceof Error ? error.message : "Delete failed");
     } finally {
       setDeleting(false);
     }
+  }, [scheme]);
+
+  const handleRetryProcessing = useCallback(async () => {
+    if (!scheme?.sowFileKey) return;
+
+    try {
+      toast.info("Retrying...");
+      
+      const res = await fetch("/api/scheme/retryProcessing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sowFileKey: scheme.sowFileKey }),
+      });
+
+      const result = await res.json();
+      
+      if (result.success) {
+        setScheme(prev => prev ? { 
+          ...prev, 
+          processingStatus: 'pending', 
+          sowErrorMessage: undefined 
+        } : null);
+        setHasShownStatusToast(false);
+        toast.success("Retry started");
+      } else {
+        toast.error(result.error || "Retry failed");
+      }
+    } catch (error) {
+      toast.error("Network error");
+    }
   }, [scheme?.sowFileKey]);
 
-  if (loading) {
+  const handleManualRetry = useCallback(() => {
+    setNetworkError(false);
+    setLoading(true);
+    setScheme(null);
+    setHasFetched(false);
+    
+    // Force refresh
+    const syncKey = "sow_last_sync";
+    sessionStorage.setItem(syncKey, Date.now().toString());
+    router.refresh();
+    
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        fetchScheme({ showLoader: true });
+      }
+    }, 100);
+  }, [fetchScheme, router]);
+
+  // ✅ Show loading skeleton
+  if (loading || !hasFetched) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Loading />
+      <div className="min-h-screen bg-background p-3 sm:p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-6 sm:mb-8 md:mb-12">
+            <div className="h-8 sm:h-10 bg-muted rounded w-48 sm:w-64 mx-auto mb-2 sm:mb-3 animate-pulse" />
+            <div className="h-5 sm:h-6 bg-muted rounded w-64 sm:w-96 mx-auto animate-pulse" />
+          </div>
+          <SchemeCardSkeleton />
+        </div>
       </div>
     );
   }
 
-  const isProcessingComplete = scheme?.processingStatus === 'complete';
-
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-3">Scheme of Work</h1>
-          <p className="text-muted-foreground text-sm sm:text-lg">
+    <div className="min-h-screen bg-background p-3 sm:p-4">
+      <div className="max-w-4xl mx-auto">
+        {networkError && (
+          <div className="mb-4 p-3 sm:p-4 bg-destructive/10 border-2 border-destructive/20 rounded-lg">
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Wifi className="h-4 w-4 sm:h-5 sm:w-5 text-destructive flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-semibold text-destructive truncate">Connection Issue</p>
+                  <p className="text-[10px] sm:text-xs text-destructive/80 truncate">Check your network</p>
+                </div>
+              </div>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleManualRetry}
+                className="flex-shrink-0 h-8 px-2 sm:px-3 text-xs"
+              >
+                <RefreshCw className="h-3 w-3 sm:mr-1" />
+                <span className="hidden sm:inline">Retry</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="text-center mb-6 sm:mb-8 md:mb-12">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-3">
+            Scheme of Work
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-2">
             {!scheme 
-              ? "Upload your scheme to get started"
-              : isProcessingComplete
-              ? "Edit your scheme to customize it"
+              ? "Choose how you'd like to create your scheme"
+              : scheme.isManuallyAdded
+              ? "View your manually created scheme"
+              : scheme.processingStatus === 'complete'
+              ? "Your scheme is ready"
               : "Processing your scheme"}
           </p>
         </div>
 
-        {scheme ? (
-          <Card className="w-full">
-            <CardHeader className="pb-4 sm:pb-6 px-4 sm:px-6">
-              <div className="flex items-start gap-3 sm:gap-4">
-                {/* Status Icon */}
-                <div className={`p-2 sm:p-3 rounded-lg ${
-                  isProcessingComplete
-                    ? 'bg-green-500/10'
-                    : scheme.processingStatus === 'failed'
-                    ? 'bg-destructive/10'
-                    : 'bg-primary/10'
-                }`}>
-                  {isProcessingComplete ? (
-                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-                  ) : scheme.processingStatus === 'failed' ? (
-                    <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
-                  ) : (
-                    <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary animate-spin" />
-                  )}
-                </div>
-
-                <div className="flex-1 space-y-1 sm:space-y-2 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                    <CardTitle className="text-lg sm:text-2xl truncate">{scheme.title}</CardTitle>
-                    
-                    {/* Status Badge */}
-                    {isProcessingComplete && (
-                      <span className="px-2 py-1 text-xs bg-green-500/10 text-green-700 rounded-full w-fit font-medium">
-                        ✓ Ready to Edit
-                      </span>
-                    )}
-                    {scheme.processingStatus === 'processing' && (
-                      <span className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-full w-fit">
-                        Processing...
-                      </span>
-                    )}
-                    {scheme.processingStatus === 'pending' && (
-                      <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded-full w-fit">
-                        Queued
-                      </span>
-                    )}
-                    {scheme.processingStatus === 'failed' && (
-                      <span className="px-2 py-1 text-xs bg-destructive/10 text-destructive rounded-full w-fit">
-                        Failed
-                      </span>
-                    )}
-                  </div>
-
-                  <CardDescription className="flex items-center gap-1 sm:gap-2 text-xs sm:text-base">
-                    <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="truncate">
-                      Uploaded {new Date(scheme.uploadedAt).toLocaleDateString()}
-                    </span>
-                  </CardDescription>
+        {uploading ? (
+          <SchemeCardSkeleton />
+        ) : scheme ? (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <SchemeCard
+              scheme={scheme}
+              navigating={navigating}
+              deleting={deleting}
+              onNavigateToEdit={handleNavigateToEdit}
+              onNavigateToView={handleNavigateToView}
+              onDelete={() => setOpenDelete(true)}
+              onRetryProcessing={handleRetryProcessing}
+            />
+            
+            {scheme.processingStatus === "failed" && (
+              <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed animate-in slide-in-from-top-2">
+                <p className="text-center text-sm text-muted-foreground mb-3">
+                  Extraction failed. You can retry above or start fresh below.
+                </p>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setOpenUpload(true)} className="flex-1">
+                    Upload New
+                  </Button>
+                  <Button variant="outline" onClick={handleNavigateToManualAdd} className="flex-1">
+                    Create Manually
+                  </Button>
                 </div>
               </div>
-            </CardHeader>
-
-            <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
-              {/* Action Button - ONLY Edit Scheme */}
-              {isProcessingComplete && (
-                <div className="bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl p-5 sm:p-7 border-2">
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                      <div className="space-y-1">
-                        <p className="font-medium text-green-900 dark:text-green-100">
-                          Processing Complete
-                        </p>
-                        <p className="text-sm text-green-700 dark:text-green-200">
-                          Your scheme is ready. Click below to review and customize it.
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Button
-                      onClick={handleNavigateToEdit}
-                      className="w-full h-14 gap-3 text-base font-semibold shadow-lg"
-                      size="lg"
-                      disabled={navigating}
-                    >
-                      {navigating ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          <span>Opening Editor...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Edit className="h-5 w-5" />
-                          <span>Edit Scheme</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Processing Status Message */}
-              {!isProcessingComplete && (
-                <div className={`p-4 rounded-xl border-2 ${
-                  scheme.processingStatus === 'failed' 
-                    ? 'bg-destructive/10 border-destructive/20' 
-                    : 'bg-primary/10 border-primary/20'
-                }`}>
-                  <div className="flex items-start gap-3">
-                    {scheme.processingStatus === 'failed' ? (
-                      <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                    ) : (
-                      <Loader2 className="h-5 w-5 text-primary animate-spin mt-0.5 flex-shrink-0" />
-                    )}
-                    <div className="space-y-1 min-w-0">
-                      <p className={`font-semibold ${
-                        scheme.processingStatus === 'failed' ? 'text-destructive' : 'text-primary'
-                      }`}>
-                        {scheme.processingStatus === 'failed' 
-                          ? 'Processing Failed' 
-                          : 'Processing Your Scheme...'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {scheme.processingStatus === 'failed' 
-                          ? scheme.sowErrorMessage || 'An error occurred. Please delete and try again.'
-                          : 'We\'re extracting and organizing your content. You\'ll receive a notification when ready.'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Delete Section */}
-              <div className="pt-4 sm:pt-6 border-t space-y-3">
-                <div className="space-y-1">
-                  <h3 className="text-base sm:text-lg font-semibold">Manage Scheme</h3>
-                  <p className="text-muted-foreground text-xs sm:text-sm">
-                    Delete your current scheme to upload a new one
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setOpenDelete(true)}
-                  className="gap-2 h-10 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                  <span>Delete Scheme</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         ) : (
-          /* Empty State - No Scheme Uploaded */
-          <Card className="w-full text-center border-2 border-dashed">
-            <CardContent className="pt-12 pb-16 px-8">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-                <FileText className="h-10 w-10 text-muted-foreground" />
-              </div>
-
-              <h3 className="text-2xl font-bold mb-3">No Scheme of Work</h3>
-              <p className="text-muted-foreground text-lg mb-8 max-w-md mx-auto">
-                Get started by uploading your Scheme of Work document.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button
-                  onClick={() => setOpenUpload(true)}
-                  className="gap-2 h-12 text-base"
-                  size="lg"
-                >
-                  <Upload className="h-5 w-5" />
-                  <span>Upload File</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="gap-2 h-12 text-base"
-                  size="lg"
-                  onClick={handleCameraClick}
-                >
-                  <Camera className="h-5 w-5" />
-                  <span>Use Camera</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyState
+            onUploadClick={() => setOpenUpload(true)}
+            onCameraClick={handleCameraClick}
+            onManualAddClick={handleNavigateToManualAdd}
+          />
         )}
 
-        {/* Upload Dialog */}
-        <Dialog open={openUpload} onOpenChange={setOpenUpload}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Upload Scheme of Work</DialogTitle>
-              <DialogDescription>
-                Upload your scheme document (PDF, DOCX, or Image - Max 10MB)
-              </DialogDescription>
-            </DialogHeader>
+        <UploadDialog
+          open={openUpload}
+          onOpenChange={setOpenUpload}
+          file={file}
+          onFileChange={setFile}
+          uploading={uploading}
+          compressingImage={compressingImage}
+          progress={progress}
+          onUpload={handleUpload}
+          onCancel={handleCancelUpload}
+        />
 
-            <div className="space-y-4">
-              <label
-                htmlFor="scheme-file"
-                className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer hover:border-primary transition"
-              >
-                <Upload className="h-12 w-12 text-muted-foreground mb-3" />
-                <p className="font-medium mb-1">Click to browse or drag & drop</p>
-                <p className="text-sm text-muted-foreground">PDF, DOCX, JPG, or PNG</p>
+        <ProcessingDialog
+          open={showProcessingRedirect}
+          onOpenChange={setShowProcessingRedirect}
+          onGoToDashboard={navigateWhileProcessing}
+        />
 
-                <Input
-                  id="scheme-file"
-                  type="file"
-                  accept=".pdf,.docx,.jpg,.png"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  disabled={uploading}
-                  className="hidden"
-                />
-              </label>
-
-              {file && (
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{file.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(file.size / 1024).toFixed(1)} KB
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {uploading && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Uploading...</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpenUpload(false)} disabled={uploading}>
-                Cancel
-              </Button>
-              <Button onClick={handleUpload} disabled={!file || uploading}>
-                {uploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload & Process
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Processing Redirect Dialog */}
-        <Dialog open={showProcessingRedirect} onOpenChange={setShowProcessingRedirect}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Processing Started!</DialogTitle>
-              <DialogDescription>
-                Your scheme is being processed in the background.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
-                <div className="flex gap-3">
-                  <Loader2 className="h-5 w-5 text-primary animate-spin mt-0.5 flex-shrink-0" />
-                  <div className="space-y-2">
-                    <p className="font-medium text-primary">What's happening?</p>
-                    <ul className="text-sm text-primary/90 space-y-1 list-disc list-inside">
-                      <li>Extracting text from your document</li>
-                      <li>Processing may take 30-60 seconds</li>
-                      <li>You will get a notification when ready</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button onClick={navigateWhileProcessing} className="w-full">
-                Go to Dashboard
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={openDelete} onOpenChange={setOpenDelete}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-destructive/10 p-2 rounded-full">
-                  <AlertTriangle className="h-6 w-6 text-destructive" />
-                </div>
-                <DialogTitle className="text-destructive">Delete Scheme</DialogTitle>
-              </div>
-              <DialogDescription>
-                This action cannot be undone. All extracted data will be permanently deleted.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4">
-              <p className="font-medium mb-1">You are about to delete:</p>
-              <p className="text-sm truncate">{scheme?.title}</p>
-            </div>
-
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setOpenDelete(false)} disabled={deleting}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-                {deleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Permanently
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <DeleteDialog
+          open={openDelete}
+          onOpenChange={setOpenDelete}
+          schemeTitle={scheme?.title || ""}
+          isManuallyAdded={scheme?.isManuallyAdded || false}
+          deleting={deleting}
+          onConfirm={handleDeleteScheme}
+        />
       </div>
     </div>
   );

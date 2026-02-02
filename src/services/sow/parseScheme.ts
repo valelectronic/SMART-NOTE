@@ -7,77 +7,67 @@ export type ParsedWeek = {
 export function parseScheme(rawText: string): ParsedWeek[] {
   const lines = rawText
     .split("\n")
-    .map((line: string) => line.trim())
+    .map((line) => line.trim())
     .filter(Boolean);
 
   const weeks: ParsedWeek[] = [];
   let currentWeek: ParsedWeek | null = null;
 
   for (const line of lines) {
-    // Ignore headers & meta rows
-    if (
-      /week\s+topic/i.test(line) ||
-      /scheme\s+work/i.test(line) ||
-      /term/i.test(line)
-    ) {
-      continue;
-    }
-
-    // Split OCR table columns
-    const columns = line.split(/\t|\s{2,}/).filter(Boolean);
-
-    // Detect valid week number (ONLY 1–13)
-    const weekMatch = columns[0]?.match(/^([1-9]|1[0-3])$/);
+    // 1. More Lenient Week Detection (Handles "Week 1", "Wk 1", "1.", etc.)
+    // Matches: 'Week 1', 'Wk 1', '1.', or just '1' at the start
+    const weekMatch = line.match(/^(?:week|wk|w)?\s*(\d{1,2})(?:\.|\s|-|:|$)/i);
 
     if (weekMatch) {
-      // Save previous week
-      if (currentWeek) {
-        currentWeek.content = currentWeek.content.trim();
-        weeks.push(currentWeek);
-      }
+      if (currentWeek) weeks.push(currentWeek);
 
       const weekNumber = Number(weekMatch[1]);
-      const topic = columns[1] ?? "Untitled Topic";
-      const content = columns[2] ?? "";
+      
+      // Everything after the week number is the topic/content
+      const remainingText = line.replace(weekMatch[0], "").trim();
 
       currentWeek = {
         weekNumber,
-        topicTitle: normalizeOCR(topic),
-        content: normalizeOCR(content),
+        topicTitle: normalizeOCR(remainingText) || `Week ${weekNumber} Topic`,
+        content: "",
       };
-
       continue;
     }
 
-    // Append extra lines as content
+    // 2. If it's not a new week line, it's content for the current week
     if (currentWeek) {
-      currentWeek.content += " " + normalizeOCR(line);
+      if (!currentWeek.topicTitle || currentWeek.topicTitle.startsWith("Week")) {
+         currentWeek.topicTitle = normalizeOCR(line);
+      } else {
+         currentWeek.content += " " + normalizeOCR(line);
+      }
     }
   }
 
-  // Push last week
-  if (currentWeek) {
-    currentWeek.content = currentWeek.content.trim();
-    weeks.push(currentWeek);
+  if (currentWeek) weeks.push(currentWeek);
+
+  // Fallback: If no weeks were found but there is text, 
+  // let's create a single entry so it doesn't just "fail"
+  if (weeks.length === 0 && rawText.length > 20) {
+      weeks.push({
+          weekNumber: 1,
+          topicTitle: "Extracted Content",
+          content: normalizeOCR(rawText).substring(0, 200)
+      });
   }
 
   return weeks;
 }
 
-
 function normalizeOCR(text: string): string {
   return text
-    // Remove OCR noise characters
     .replace(/[•|]/g, "")
     .replace(/[\[\]\(\)\{\}]/g, "")
-
-    // Fix spacing issues
     .replace(/\s{2,}/g, " ")
     .replace(/\r/g, "")
     .replace(/\n/g, " ")
-
-    // Common *structural* OCR mistakes (not meaning)
+    // Add this to catch the common mistake you saw in your console
+    .replace(/\bweei\b/gi, "Week") 
     .replace(/\bolli\s*ine\b/gi, "online")
-
     .trim();
 }

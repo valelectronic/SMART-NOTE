@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import  {toast} from "sonner"
 import {
   Table,
   TableBody,
@@ -23,6 +24,7 @@ import {
   CheckCircle2,
   AlertCircle,
   MoreVertical,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -60,16 +62,31 @@ export default function ViewSchemeOfWorkPage() {
   const loadScheme = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/scheme/currentSOW", {
+      // ✅ CRITICAL: Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const res = await fetch(`/api/scheme/currentSOW?t=${timestamp}`, {
         cache: "no-store", // Force fresh data
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        }
       });
+      
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load`);
       const data = await res.json();
+      
+      console.log("=== VIEW PAGE: Data fetched ===");
+      console.log("Full response:", data);
+      
       const extractedText =
         data.scheme?.sowExtractedText || data.scheme?.extractedText;
 
+      console.log("Extracted text length:", extractedText?.length);
+
       if (data.success && extractedText) {
         const parsed = JSON.parse(extractedText);
+        console.log("Parsed weeks:", parsed);
+        
         const transformedWeeks = Array.isArray(parsed)
           ? parsed.map((week: any) => ({
               weekNumber: week.weekNumber || week.week || 1,
@@ -77,12 +94,17 @@ export default function ViewSchemeOfWorkPage() {
               content: week.content || week.topicContent || "",
             }))
           : [];
+        
+        console.log(`Setting ${transformedWeeks.length} weeks in state`);
         setWeeks(transformedWeeks);
         setError(null);
       } else {
+        console.warn("No scheme data found");
         setError("No scheme found");
       }
     } catch (err) {
+      console.error("Load error:", err);
+      toast.error("Error loading curriculum data");
       setError(err instanceof Error ? err.message : "Failed to load scheme");
     } finally {
       setLoading(false);
@@ -118,6 +140,37 @@ export default function ViewSchemeOfWorkPage() {
     a.download = `scheme-of-work-${new Date().toISOString().split("T")[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.success("File exported successfully");
+  };
+
+ const handleDelete = async () => {
+    // ✅ Replaced window.confirm with toast.promise or custom confirm
+    // For a simple replacement of confirm(), we use toast action:
+    toast("Delete Scheme of Work?", {
+      description: "This action cannot be undone.",
+      action: {
+        label: "Delete",
+        onClick: async () => {
+          try {
+            setLoading(true);
+            const res = await fetch("/api/scheme/deleteScheme", { method: "DELETE" });
+            if (!res.ok) throw new Error("Delete failed");
+
+            toast.success("Scheme deleted successfully"); //  Success Toast
+            setWeeks([]);
+            router.push("/community/schemeOfWork/editScheme");
+          } catch (error) {
+            toast.error("Could not delete scheme. Try again."); //  Error Toast
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => toast.dismiss(),
+      },
+    });
   };
 
   if (loading) {
@@ -160,7 +213,7 @@ export default function ViewSchemeOfWorkPage() {
                 </p>
               </div>
               <Button
-                onClick={() => router.push("/community/schemeOfWork")}
+                onClick={() => router.push("/community/schemeOfWork/editScheme")}
                 size="lg"
                 className="mt-4"
               >
@@ -224,6 +277,14 @@ export default function ViewSchemeOfWorkPage() {
                 <FileEdit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
             </div>
 
             {/* Mobile Actions - Dropdown Menu */}
@@ -245,6 +306,13 @@ export default function ViewSchemeOfWorkPage() {
                 <DropdownMenuItem onClick={handleDownload}>
                   <Download className="h-4 w-4 mr-2" />
                   Export
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleDelete}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Scheme
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

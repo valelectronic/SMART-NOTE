@@ -4,6 +4,7 @@ import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { processSchemeOfWork } from "@/jobs/processSOW";
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 
 export async function createSchemeRecordController(
   body: { sowFileKey: string },
@@ -58,6 +59,9 @@ export async function createSchemeRecordController(
     if (!updated) {
       return { success: false, error: "Failed to save scheme" };
     }
+    // --- 6. REVALIDATE ---
+    revalidatePath("/community/schemeOfWork");
+    revalidatePath("/community/schemeOfWork/editScheme");
 
     // Trigger background job to process SOW
     after(async () => {

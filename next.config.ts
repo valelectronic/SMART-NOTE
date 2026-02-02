@@ -1,15 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // ✅ Move out of experimental for Next.js 16+
+  serverExternalPackages: ['tesseract.js', 'sharp'],
 
-  images:{
+  images: {
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'res.cloudinary.com',
-        port: '',
-        pathname: '/**/*', // Allows any path/folder after the hostname
+        pathname: '/**', // Simplified for all paths
       },
     ],
   }

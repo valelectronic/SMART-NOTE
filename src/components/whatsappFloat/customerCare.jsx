@@ -45,7 +45,7 @@ export default function CustomerCare() {
           </CardHeader>
           <CardContent className="pb-4 pt-4">
             <p className="text-sm text-muted-foreground mb-4">
-              Hi! 👋 How can we help you today?
+              Hi! 👋 Any suggestions for our SmartNote?
             </p>
             <Button
               className="w-full bg-[#25D366] hover:bg-[#20BA5A] text-white"

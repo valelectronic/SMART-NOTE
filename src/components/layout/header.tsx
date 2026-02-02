@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut, useSession } from "@/lib/db/auth.client";
-import { Bell, Home, LogOut, Menu, Shield, Settings, User, X ,BadgeCheck, NotebookText, BookOpenText} from "lucide-react";
+import { Upload, Home, LogOut, Menu, Shield, Settings, Calendar, X ,BadgeCheck, NotebookText, BookOpenText} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -68,11 +68,11 @@ const initials = (profile?.fullName || user?.name)
         { label: "Post Approval", href: "/admin/post-approval", icon: BadgeCheck },
       ]
     : [
-        { label: "lesson Note", href: "/community/lessonNote", icon: BookOpenText },
-        { label: "scheme of work", href: "/community/schemeOfWork", icon: NotebookText },
+      {label: "Add/Edit scheme", href: "/community/schemeOfWork/editScheme", icon: BookOpenText},
+      { label: "Upload scheme of work", href: "/community/schemeOfWork", icon: Upload },
+       { label: "View scheme", href: "/community/schemeOfWork/viewSow", icon: Calendar },
+        { label: "lesson Note", href: "/myNotes/lessonNote", icon: NotebookText },
         { label: "Settings", href: "/profile-settings", icon: Settings },
-        { label: "Profile", href: "/community/profile", icon: User },
-        { label: "Notifications", href: "/notifications", icon: Bell },
       ]
   : [];
 
@@ -85,9 +85,9 @@ const initials = (profile?.fullName || user?.name)
     {/* scheme of work - only when logged in */}
     {user && (
       <>
-        <Link href="/community/schemeOfWork" onClick={close} aria-label="Settings">
+        <Link href="/community/schemeOfWork/editScheme" onClick={close} aria-label="Settings">
           <div className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 transition-colors">
-            <NotebookText className="h-5 w-5" />
+            <BookOpenText className="h-5 w-5" />
           </div>
         </Link>
       </>

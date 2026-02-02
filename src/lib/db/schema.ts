@@ -112,6 +112,7 @@ export const sowProcessingStatusEnum = pgEnum("sow_processing_status", [
     "processing",
     "complete",
     "failed",
+    "idle"
 ]);
 
 // onboarding table
@@ -145,7 +146,7 @@ export const onboarding = pgTable("onboarding", {
   sowUploadedAt: timestamp("sow_uploaded_at"), 
   sowFileKey: text("sow_file_key"),
 //  NEW FIELDS FOR ASYNCHRONOUS JOB TRACKING 
-  sowProcessingStatus: sowProcessingStatusEnum("sow_processing_status").default("complete").notNull(),
+  sowProcessingStatus: sowProcessingStatusEnum("sow_processing_status").default("complete"),
   sowErrorMessage: text("sow_error_message"),
 
 //  RAW EXTRACTED TEXT (CRITICAL FOR AI + PARSING)

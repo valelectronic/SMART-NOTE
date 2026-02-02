@@ -1,72 +1,101 @@
+import { createWorker } from "tesseract.js";
 import { getCloudinaryImageUrl } from "@/lib/client";
-import { runOCRSpace, runOCRSpaceWithRetry } from "./ocrSpace";
+import sharp from "sharp";
+import axios from "axios";
 
-export async function extractTextFromSOW(sowFileKey: string) {
+export async function extractTextFromSOW(
+  sowFileKey: string,
+  onProgress?: (stage: string, percent: number) => void
+) {
   const imageUrl = getCloudinaryImageUrl(sowFileKey);
-  
-  console.log("=== STARTING SOW TEXT EXTRACTION ===");
-  console.log("File Key:", sowFileKey);
-  console.log("Image URL:", imageUrl);
-  
+
+  if (onProgress) onProgress("Enhancing Image Quality", 10);
+
+  const worker = await createWorker("eng", 1, {
+    logger: m => {
+      if (!onProgress) return;
+
+      if (m.status === "loading tesseract core") onProgress("Initializing Engine", 20);
+      if (m.status === "loading language traineddata") onProgress("Loading Language Support", 30);
+      if (m.status === "initializing api") onProgress("Preparing Reader", 40);
+      if (m.status === "recognizing text") {
+        const percent = 50 + Math.round(m.progress * 45);
+        onProgress("Reading Document", percent);
+      }
+    },
+    errorHandler: e => console.error("OCR Worker Error:", e),
+  });
+
   try {
-    // ✅ Use retry version for better reliability
-    const rawText = await runOCRSpaceWithRetry(imageUrl, 2);
-    
-    console.log("=== EXTRACTION SUCCESSFUL ===");
-    console.log("Total characters extracted:", rawText.length);
-    console.log("Preview:", rawText.substring(0, 200));
-    
-    // ✅ Final validation
-    if (!rawText || rawText.trim().length === 0) {
-      throw new Error(
-        "OCR returned no text. Please ensure:\n" +
-        "• The image is clear and well-lit\n" +
-        "• Text is dark and readable\n" +
-        "• The camera was focused\n" +
-        "• There are no shadows on the paper"
-      );
+    // 1. Fetch image
+    const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
+    const imageBuffer = Buffer.from(imageResponse.data);
+
+    // 2. Enhance image for OCR
+    const optimizedBuffer = await sharp(imageBuffer)
+      .resize(3000)
+      .grayscale()
+      .normalize()
+      .threshold(160)
+      .sharpen({ sigma: 2 })
+      .toBuffer();
+
+    // 3. OCR
+    const {
+      data: { text },
+    } = await worker.recognize(optimizedBuffer, { rotateAuto: true });
+
+    await worker.terminate();
+
+    if (!text || text.trim().length < 10) {
+      throw new Error("Could not detect enough text in the image.");
     }
-    
-    // ✅ Check for minimum viable content - VERY LENIENT
-    const trimmed = rawText.trim();
-    if (trimmed.length < 3) {
-      throw new Error(
-        `OCR extracted only ${trimmed.length} characters. This is too little.\n\n` +
-        "What OCR found: \"" + trimmed + "\"\n\n" +
-        "For handwritten schemes:\n" +
-        "• Use dark pen (black or blue)\n" +
-        "• Write clearly and legibly\n" +
-        "• Ensure good lighting from above\n" +
-        "• Hold the camera steady\n" +
-        "• Make sure the text fills most of the frame\n\n" +
-        "Try taking a clearer photo with better lighting."
-      );
+
+    if (onProgress) onProgress("Cleaning Text", 95);
+
+    /**
+     * 🔴 CRITICAL FIX:
+     * Normalize OCR output WITHOUT inference
+     */
+    const cleanedText = text
+      // Break table borders & bullets into lines
+      .replace(/[|•■▪]/g, "\n")
+
+      // Remove obvious OCR garbage lines
+      .replace(/^[^\w\n]{1,}$/gm, "")
+
+      // Remove stray single letters or symbols (K, I, l, etc.)
+      .replace(/^\s*[A-Za-z]\s*$/gm, "")
+
+      // Normalize multiple newlines
+      .replace(/\n{2,}/g, "\n")
+
+      // Trim each line
+      .split("\n")
+      .map(line => line.trim())
+      .filter(line => line.length >= 3)
+      .join("\n");
+
+    if (cleanedText.length < 10) {
+      throw new Error("OCR text is too noisy after cleaning.");
     }
-    
-    // ✅ Log what we actually got for debugging
-    if (trimmed.length < 20) {
-      console.warn(`⚠️ Very short extraction (${trimmed.length} chars): "${trimmed}"`);
-    }
-    
+
+    if (onProgress) onProgress("Complete", 100);
+
+    //  DEBUG (keep for now)
+    console.log("=== OCR CLEANED LINES ===");
+    cleanedText.split("\n").forEach((l, i) => {
+      console.log(`${i + 1}:`, l);
+    });
+
     return {
-      rawText,
+      rawText: cleanedText,
       pageCount: 1,
     };
-    
-  } catch (error) {
-    console.error("=== EXTRACTION FAILED ===");
-    console.error(error);
-    
-    // Re-throw with context
-    if (error instanceof Error) {
-      throw error;
-    }
-    
-    throw new Error(
-      "Failed to extract text from the image. Please try:\n" +
-      "• Taking a new photo in better lighting\n" +
-      "• Using a darker pen for handwritten text\n" +
-      "• Making sure the image is clear and focused"
-    );
+  } catch (error: any) {
+    try {
+      await worker.terminate();
+    } catch {}
+    throw new Error(error.message || "Failed to read the image.");
   }
 }
