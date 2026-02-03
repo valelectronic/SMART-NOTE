@@ -18,6 +18,7 @@ interface UploadDialogProps {
   progress: number;
   onUpload: () => void;
   onCancel: () => void;
+  ocrStatus: string;
 }
 
 export function UploadDialog({
@@ -30,6 +31,7 @@ export function UploadDialog({
   progress,
   onUpload,
   onCancel,
+  ocrStatus,
 }: UploadDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -87,7 +89,9 @@ export function UploadDialog({
           {uploading && (
             <div className="space-y-3 p-4 bg-primary/5 rounded-xl">
               <div className="flex justify-between text-sm font-medium">
-                <span className="text-primary">Uploading...</span>
+                <p className="text-sm font-medium text-center text-primary animate-pulse">
+            {ocrStatus || (progress < 100 ? "Uploading..." : "Processing...")}
+        </p>
                 <span>{progress}%</span>
               </div>
               <div className="h-3 bg-muted rounded-full overflow-hidden">

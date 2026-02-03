@@ -7,7 +7,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 
 export async function createSchemeRecordController(
-  body: { sowFileKey: string },
+  body: { sowFileKey: string; rawText: string },
   headersList: Headers
 ) {
   try {
@@ -20,7 +20,7 @@ export async function createSchemeRecordController(
     const userId = session.user.id;
 
     // --- 2. VALIDATION ---
-    const { sowFileKey } = body;
+    const { sowFileKey, rawText } = body;
 
     if (!sowFileKey) {
       return { success: false, error: "Missing sowFileKey" };
@@ -49,7 +49,7 @@ export async function createSchemeRecordController(
         sowFileKey,
         sowTitle,
         sowUploadedAt: now,
-        sowProcessingStatus: "pending",
+        sowProcessingStatus: "processing",
         sowErrorMessage: null,
         updatedAt: now,
       })
@@ -61,20 +61,24 @@ export async function createSchemeRecordController(
     }
     // --- 6. REVALIDATE ---
     revalidatePath("/community/schemeOfWork");
-    revalidatePath("/community/schemeOfWork/editScheme");
+
 
     // Trigger background job to process SOW
-    after(async () => {
-       console.log("Starting background SOW processing...");
-       await processSchemeOfWork(userId, sowFileKey);
-    });
-    
+    if (rawText) {
+      after(async () => {
+        console.log("Starting fast AI cleanup with pre-extracted text...");
+        // Pass rawText into your processing function
+        await processSchemeOfWork(userId, rawText); 
+      });
+    } else {
+      console.warn("No rawText provided. OCR will fail on serverless.");
+    }
 
     return {
       success: true,
       sowTitle,
       sowFileKey,
-      processingStatus: "pending",
+      processingStatus: "processing",
     };
   } catch (error) {
     console.error("[SOW CREATE ERROR]", error);

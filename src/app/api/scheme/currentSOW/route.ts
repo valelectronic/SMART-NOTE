@@ -2,23 +2,24 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm"; // Added desc
+import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request: Request) {
-    // 1. AUTH CHECK
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-        return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
-    }
-
-    const userId = session.user.id;
-
     try {
-        // 2. FETCH LATEST RECORD (Added Sorting)
+        // 1. AUTH CHECK (Moved inside try-catch to handle DB connection issues)
+        const session = await auth.api.getSession({ headers: await headers() });
+        
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+        }
+
+        const userId = session.user.id;
+
+        // 2. FETCH LATEST RECORD
         const currentScheme = await db.query.onboarding.findFirst({
             where: eq(onboarding.userId, userId),
             orderBy: [desc(onboarding.updatedAt)], 
@@ -35,8 +36,9 @@ export async function GET(request: Request) {
         });
 
         // 3. FORMAT RESPONSE
+        let schemeData = null;
         if (currentScheme) {
-            const schemeData = {
+            schemeData = {
                 title: currentScheme.sowTitle,
                 sowFileKey: currentScheme.sowFileKey,
                 uploadedAt: currentScheme.sowUploadedAt?.toISOString(),
@@ -46,29 +48,32 @@ export async function GET(request: Request) {
                 updatedAt: currentScheme.updatedAt?.toISOString(),
                 sowExtractedText: currentScheme.sowExtractedText,
                 extractedText: currentScheme.sowExtractedText,
-                // Force a unique hash so the frontend state always updates
                 _internal_sync_id: Date.now() 
             };
-
-            const response = NextResponse.json({ success: true, scheme: schemeData });
-            
-            // 4. AGGRESSIVE CACHE BUSTING HEADERS
-            response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-            response.headers.set('Pragma', 'no-cache');
-            response.headers.set('Expires', '0');
-            response.headers.set('Surrogate-Control', 'no-store');
-            
-            return response;
         }
 
-        return NextResponse.json({ success: true, scheme: null }, {
-            headers: { 'Cache-Control': 'no-store' }
-        });
+        const response = NextResponse.json({ success: true, scheme: schemeData });
+        
+        // 4. AGGRESSIVE CACHE BUSTING
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        response.headers.set('Pragma', 'no-cache');
+        response.headers.set('Expires', '0');
+        
+        return response;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("[API ERROR]:", error);
+        
+        // ✅ Specific check for the "Connection terminated" error
+        if (error.message?.includes("terminated") || error.message?.includes("Connection")) {
+            return NextResponse.json(
+                { success: false, error: "Database is busy. Retrying..." },
+                { status: 503 } // 503 Service Unavailable is better for timeouts
+            );
+        }
+
         return NextResponse.json(
-            { success: false, error: "Database error." },
+            { success: false, error: "Failed to fetch data." },
             { status: 500 }
         );
     }

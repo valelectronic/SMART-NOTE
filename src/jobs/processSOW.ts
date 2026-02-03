@@ -1,67 +1,60 @@
+// jobs/processSOW.ts (or wherever your processing logic lives)
+
 import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { extractTextFromSOW } from "@/services/sow/extractTex";
-import {
-  cleanOcrWithAI,
-  validateIsScheme,
-} from "@/services/sow/aiCleaner";
+import { cleanOcrWithAI, validateIsScheme } from "@/services/sow/aiCleaner";
 
+/**
+ * 🚀 High-Speed AI Processing
+ * Bypasses OCR timeouts by using text already extracted in the browser.
+ */
 export async function processSchemeOfWork(
   userId: string,
-  sowFileKey: string
+  rawText: string 
 ) {
   try {
-    await db
-      .update(onboarding)
-      .set({
-        sowProcessingStatus: "processing",
-        updatedAt: new Date(),
-      })
-      .where(eq(onboarding.userId, userId));
+    console.log(`[PROCESS] Starting AI analysis for User: ${userId}`);
 
-    // 1️⃣ OCR - Get raw messy text from image
-    const { rawText } = await extractTextFromSOW(sowFileKey);
-
-    if (!rawText || rawText.trim().length < 10) {
-      throw new Error("OCR failed to extract readable text.");
-    }
-
-    // 2️⃣ VALIDATE - Check if it's actually a scheme
+    // 1️⃣ VALIDATE - Is this actually a Scheme of Work?
+    // This prevents users from uploading random receipts or text.
     const validation = await validateIsScheme(rawText);
+    
     if (!validation.isValid) {
-      throw new Error(validation.reason);
+      throw new Error(validation.reason || "This document doesn't look like a valid Scheme of Work.");
     }
 
-    // 3️⃣ AI CLEAN & STRUCTURE (Combined Step)
-    // This now returns a WeekEntry[] directly (13 weeks)
+    // 2️⃣ AI CLEAN & STRUCTURE
+    // Transforms messy "OCR-ish" text into a clean WeekEntry[] array.
     const normalizedWeeks = await cleanOcrWithAI(rawText);
 
-    if (!normalizedWeeks || normalizedWeeks.length === 0) {
-       throw new Error("AI failed to structure the document.");
+    if (!normalizedWeeks || !Array.isArray(normalizedWeeks) || normalizedWeeks.length === 0) {
+       throw new Error("AI was unable to identify weeks or topics in this document.");
     }
 
-    // 4️⃣ SAVE
-    // We skip manual extraction because normalizedWeeks is already perfect.
+    // 3️⃣ FINAL SAVE
     await db
       .update(onboarding)
       .set({
         sowProcessingStatus: "complete",
-        sowExtractedText: JSON.stringify(normalizedWeeks),
-        sowEdited: true,
+        sowExtractedText: JSON.stringify(normalizedWeeks), // Stored as structured JSON string
+        sowEdited: true, 
+        sowErrorMessage: null, // Clear any previous errors
         updatedAt: new Date(),
       })
       .where(eq(onboarding.userId, userId));
 
-    console.log("✅ SOW PROCESS COMPLETE");
-  } catch (error: any) {
-    console.error("[SOW PROCESS ERROR]", error);
+    console.log("✅ [PROCESS] SOW Successfully Structured and Saved.");
 
+  } catch (error: any) {
+    console.error("❌ [PROCESS ERROR]", error);
+
+    // Update DB so the UI shows the "Failed" state and the reason
     await db
       .update(onboarding)
       .set({
         sowProcessingStatus: "failed",
-        sowErrorMessage: error.message || "Scheme processing failed",
+        sowErrorMessage: error.message || "Failed to process the document text.",
         updatedAt: new Date(),
       })
       .where(eq(onboarding.userId, userId));

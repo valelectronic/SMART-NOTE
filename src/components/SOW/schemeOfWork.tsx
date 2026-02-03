@@ -103,6 +103,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
   const isFetchingRef = useRef(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<string>("");
 
   // ✅ Enhanced fetchScheme with aggressive cache busting
   const fetchScheme = useCallback(
@@ -271,7 +272,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
     
     if (!shouldPoll) return;
 
-    console.log("⏱️ Starting poll for processing status");
+    console.log("Starting poll for processing status");
     
     pollIntervalRef.current = setInterval(() => {
       if (document.visibilityState === "visible" && isMountedRef.current && !isFetchingRef.current) {
@@ -331,6 +332,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
     input.click();
   }, []);
 
+  // ✅ Handle File Upload with OCR Extraction
   const handleUpload = useCallback(async () => {
     if (!file) {
       toast.error("Please select a file.");
@@ -357,6 +359,19 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         
         setCompressingImage(false);
       }
+
+      // Import this from your ocrClient file
+    toast.info("Reading document text...");
+     setOcrStatus("Extracting text from document...");
+    const { extractTextFromSOWClient } = await import("@/services/sow/ocrClient");
+    const { rawText } = await extractTextFromSOWClient(fileToUpload, (stage, percent) => {
+      // You can update a secondary progress state here if you like
+      console.log(`${stage}: ${percent}%`);
+      setProgress(percent);
+    });
+
+    setProgress(0); 
+    setOcrStatus("Uploading to cloud...");
 
       const { signature, timestamp, apiKey } = await getCloudinarySignature();
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -417,6 +432,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
         body: JSON.stringify({
           sowFileKey: uploadResult.public_id,
           sowFileUrl: uploadResult.secure_url,
+          rawText : rawText,
         }),
       });
 
@@ -454,6 +470,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       setCompressingImage(false);
       setProgress(0);
       uploadAbortControllerRef.current = null;
+      setOcrStatus("");
     }
   }, [file, fetchScheme]);
 
@@ -674,6 +691,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
           onFileChange={setFile}
           uploading={uploading}
           compressingImage={compressingImage}
+          ocrStatus={ocrStatus}
           progress={progress}
           onUpload={handleUpload}
           onCancel={handleCancelUpload}

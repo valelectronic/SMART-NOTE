@@ -13,7 +13,7 @@ export interface WeekEntry {
 export async function cleanOcrWithAI(rawText: string): Promise<WeekEntry[]> {
   try {
     const response = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+     model: "llama-3.3-70b-versatile",
       temperature: 0.1, 
       response_format: { type: "json_object" },
       messages: [
@@ -182,10 +182,8 @@ OUTPUT: {"weekNumber": 4, "topicTitle": "The Human Digestive System", "content":
 }
 
 export async function validateIsScheme(rawText: string) {
-  const hasWeek = /\b(week|wk|\d{1,2})\b/i.test(rawText);
-  return hasWeek
-    ? { isValid: true }
-    : { isValid: false, reason: "No curriculum structure detected." };
+  const score = (rawText.match(/\b(week|wk)\b/gi)?.length || 0) + (rawText.match(/^\d{1,2}/gm)?.length || 0);
+  return score >= 3 ? { isValid: true } : { isValid: false, reason: "Document structure not recognized." };
 }
 
 /**

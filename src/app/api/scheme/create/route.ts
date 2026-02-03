@@ -1,5 +1,4 @@
-
-export const maxDuration = 60; // Sets timeout to 60 seconds
+export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
 import { createSchemeRecordController } from "@/controllers/SOW.controller";
@@ -8,8 +7,7 @@ import { headers } from "next/headers";
 
 export async function POST(req: Request) {
   try {
-    // ✅ READ JSON
-    const body = await req.json();
+    const body = await req.json(); // This body now includes { sowFileKey, sowFileUrl, rawText }
 
     const headersList = await headers();
     const result = await createSchemeRecordController(body, headersList);
