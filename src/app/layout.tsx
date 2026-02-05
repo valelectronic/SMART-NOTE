@@ -19,8 +19,20 @@ const space = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "SMART-NOTE",
-  description: "lets handle your lesson notes.",
+  title: "SMARTNOTE | intelligent Lesson Note Generator for Teachers",
+  description: "Create professional lesson notes and schemes of work in minutes. Specifically designed for Nigerian teachers and school curricula.",
+  metadataBase: new URL('https://www.smartnote.com.ng'),
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: 'SMARTNOTE',
+    description: 'Stop spending hours on lesson notes. Let smartNote handle it.',
+    url: 'https://www.smartnote.com.ng',
+    siteName: 'SmartNote',
+    locale: 'en_NG',
+    type: 'website',
+  },
 };
 
 async function getInitialProfileData(): Promise<ProfileData> {

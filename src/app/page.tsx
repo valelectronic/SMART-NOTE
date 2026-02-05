@@ -107,8 +107,8 @@ export default async function DashboardPage() {
                 className="text-base h-12 sm:h-14 px-6 sm:px-8" 
                 asChild
               >
-                <Link href="/how-it-works">
-                  Learn More
+                <Link href="/community/aboutUs">
+                  About Us
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
