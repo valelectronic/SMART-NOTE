@@ -4,13 +4,18 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { RefreshCw, Wifi } from "lucide-react";
+import { RefreshCw, Wifi, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { SchemeCard } from "@/components/SOW/scheme/SchemeCard";
 import { EmptyState } from "@/components/SOW/scheme/EmptyState";
 import { UploadDialog, ProcessingDialog, DeleteDialog } from "@/components/SOW/scheme/SchemeDialog";
 
-// ✅ Dynamic import for image compression
+// ✅ Constants
+const UPLOAD_TIMEOUT = 120_000; // 2 minutes for slow networks
+const PROGRESS_UPDATE_THROTTLE = 200; // ms
+const POLL_INTERVAL = 15000; // 15 seconds
+
+// ✅ Lazy load image compression
 let imageCompressionModule: any = null;
 
 async function getImageCompression() {
@@ -78,6 +83,16 @@ function SchemeCardSkeleton() {
   );
 }
 
+// ✅ Simplified toast helper
+const showToast = {
+  success: (msg: string, opts?: any) => 
+    toast.success(msg, { icon: <CheckCircle2 className="h-5 w-5" />, duration: 4000, ...opts }),
+  error: (msg: string, opts?: any) => 
+    toast.error(msg, { icon: <AlertCircle className="h-5 w-5" />, duration: 5000, ...opts }),
+  loading: (msg: string) => 
+    toast.loading(msg, { icon: <Loader2 className="h-5 w-5 animate-spin" /> }),
+};
+
 export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: string | null }) {
   const [userId] = useState(initialUserId);
   const router = useRouter();
@@ -94,20 +109,19 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
   const [navigating, setNavigating] = useState(false);
   const [showProcessingRedirect, setShowProcessingRedirect] = useState(false);
   const [hasShownStatusToast, setHasShownStatusToast] = useState(false);
-  const [compressingImage, setCompressingImage] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  const [compressingImage, setCompressingImage] = useState(false); // ✅ Added back
+  const [ocrStatus, setOcrStatus] = useState<string>(""); // ✅ Added back
   
   const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const fetchAbortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   const isFetchingRef = useRef(false);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [ocrStatus, setOcrStatus] = useState<string>("");
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProgressUpdateRef = useRef(0);
 
-  // ✅ Enhanced fetchScheme with aggressive cache busting
   const fetchScheme = useCallback(
-    async (options: { showLoader?: boolean; isRetry?: boolean } = {}) => {
+    async (showLoader = false) => {
       if (!userId || isFetchingRef.current) return;
 
       if (fetchAbortControllerRef.current) {
@@ -118,190 +132,114 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       fetchAbortControllerRef.current = controller;
       isFetchingRef.current = true;
 
-      if (options.showLoader) {
-        setLoading(true);
-      }
+      if (showLoader) setLoading(true);
 
       try {
-        // ✅ Aggressive cache busting
         const res = await fetch(`/api/scheme/currentSOW?t=${Date.now()}`, {
           cache: "no-store",
           signal: controller.signal,
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
         });
         
-        if (!res.ok) throw new Error('Failed to fetch scheme');
-        
+        if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
 
         if (!isMountedRef.current) return;
 
-        if (data.success && data.scheme && data.scheme.processingStatus !== null) {
+        if (data.success && data.scheme && (data.scheme.title || data.scheme.sowFileKey)) {
+          const isManual = !data.scheme.sowFileKey;
+          
           setScheme({
-            title: data.scheme.sowTitle,
-            sowFileKey: data.scheme.sowFileKey,
+            title: data.scheme.title || "Untitled Scheme",
+            sowFileKey: data.scheme.sowFileKey || "",
             uploadedAt: data.scheme.uploadedAt,
-            processingStatus: data.scheme.processingStatus,
+            processingStatus: isManual ? "complete" : (data.scheme.processingStatus || "pending"),
             sowErrorMessage: data.scheme.sowErrorMessage,
-            isManuallyAdded: data.scheme.isManuallyAdded || false,
+            isManuallyAdded: isManual,
           });
         } else {
           setScheme(null);
         }
+        
         setNetworkError(false);
       } catch (error: any) {
-        if (error.name === 'AbortError') return;
-        
-        console.error("Fetch scheme error:", error);
-        
-        if (isMountedRef.current) {
-          setNetworkError(true);
-          
-          if (!options.isRetry && retryTimeoutRef.current === null) {
-            retryTimeoutRef.current = setTimeout(() => {
-              if (isMountedRef.current) {
-                retryTimeoutRef.current = null;
-                fetchScheme({ isRetry: true });
-              }
-            }, 2000);
-          }
+        if (error.name !== 'AbortError') {
+          console.error("Fetch error:", error);
+          if (isMountedRef.current) setNetworkError(true);
         }
       } finally {
         if (isMountedRef.current) {
           setLoading(false);
           setHasFetched(true);
         }
-        
         isFetchingRef.current = false;
-        if (fetchAbortControllerRef.current === controller) {
-          fetchAbortControllerRef.current = null;
-        }
       }
     },
     [userId]
   );
 
-  // ✅ PRODUCTION-SAFE MOUNT EFFECT - FIXED
   useEffect(() => {
     isMountedRef.current = true;
-
-    // ✅ Production-Safe Sync Check with sessionStorage
-    const syncKey = "sow_last_sync";
-    const lastSync = sessionStorage.getItem(syncKey);
-    const now = Date.now();
-
-    // If last hard sync was more than 2 seconds ago, do a fresh refresh
-    if (!lastSync || now - parseInt(lastSync) > 2000) {
-      console.log("🔄 Cache refresh triggered - router.refresh()");
-      sessionStorage.setItem(syncKey, now.toString());
-      router.refresh();
-    }
-
-    // Reset states
-    setHasFetched(false);
-    setScheme(null);
-    setLoading(true);
-
-    // ✅ FIXED: Only ONE fetch call with small delay for router.refresh to complete
-    let fetchTimer: NodeJS.Timeout | undefined;
-
+    
     if (userId) {
-      fetchTimer = setTimeout(() => {
-        if (isMountedRef.current) {
-          fetchScheme({ showLoader: true });
-        }
-      }, 100);
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) fetchScheme(true);
+      }, 50);
+      
+      return () => {
+        isMountedRef.current = false;
+        clearTimeout(timer);
+        if (fetchAbortControllerRef.current) fetchAbortControllerRef.current.abort();
+        if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+      };
     } else {
       setLoading(false);
       setHasFetched(true);
     }
+  }, [userId, fetchScheme]);
 
-    return () => {
-      isMountedRef.current = false;
-      if (fetchTimer) clearTimeout(fetchTimer);
-      if (fetchAbortControllerRef.current) fetchAbortControllerRef.current.abort();
-      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, [userId, router, fetchScheme]);
-
-  // ✅ Visibility handling with throttle
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && userId && hasFetched && isMountedRef.current && !isFetchingRef.current) {
-        const syncKey = "sow_last_sync";
-        const lastSync = sessionStorage.getItem(syncKey);
-        const now = Date.now();
-
-        // Only refresh if last sync was more than 2 seconds ago
-        if (!lastSync || now - parseInt(lastSync) > 2000) {
-          console.log("👁️ Tab visible - refreshing data");
-          sessionStorage.setItem(syncKey, now.toString());
-          router.refresh();
-          
-          setTimeout(() => {
-            if (isMountedRef.current) {
-              fetchScheme({ showLoader: false });
-            }
-          }, 100);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [userId, fetchScheme, hasFetched, router]);
-
-  // ✅ Polling for processing status
   useEffect(() => {
     const shouldPoll = 
       scheme?.processingStatus === 'processing' || 
       scheme?.processingStatus === 'pending';
     
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
     }
     
     if (!shouldPoll) return;
 
-    console.log("Starting poll for processing status");
-    
-    pollIntervalRef.current = setInterval(() => {
+    const poll = async () => {
       if (document.visibilityState === "visible" && isMountedRef.current && !isFetchingRef.current) {
-        fetchScheme({ showLoader: false });
+        await fetchScheme(false);
       }
-    }, 15000);
+      
+      if (isMountedRef.current && shouldPoll) {
+        pollTimeoutRef.current = setTimeout(poll, POLL_INTERVAL);
+      }
+    };
+
+    pollTimeoutRef.current = setTimeout(poll, POLL_INTERVAL);
 
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
       }
     };
   }, [scheme?.processingStatus, fetchScheme]);
 
   const handleNavigateToEdit = useCallback(() => {
-    router.prefetch("/community/schemeOfWork/editScheme");
     setNavigating(true);
     router.push("/community/schemeOfWork/editScheme");
   }, [router]);
 
   const handleNavigateToView = useCallback(() => {
-    router.prefetch("/community/schemeOfWork/viewScheme");
     setNavigating(true);
     router.push("/community/schemeOfWork/viewScheme");
   }, [router]);
 
   const handleNavigateToManualAdd = useCallback(() => {
-    router.prefetch("/community/schemeOfWork/editScheme");
     router.push("/community/schemeOfWork/editScheme");
   }, [router]);
 
@@ -311,67 +249,68 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-      input.capture = "environment";
-    }
+    if ('ontouchstart' in window) input.capture = "environment";
 
     input.onchange = (e) => {
       const target = e.target as HTMLInputElement;
-      if (target.files && target.files[0]) {
+      if (target.files?.[0]) {
         setFile(target.files[0]);
         setOpenUpload(true);
       }
       input.remove();
     };
     
-    input.oncancel = () => {
-      input.remove();
-    };
-
+    input.oncancel = () => input.remove();
     input.click();
   }, []);
 
-  // ✅ Handle File Upload with OCR Extraction
   const handleUpload = useCallback(async () => {
     if (!file) {
-      toast.error("Please select a file.");
+      showToast.error("Please select a file");
       return;
     }
 
     setUploading(true);
     setProgress(0);
     setNetworkError(false);
+    lastProgressUpdateRef.current = 0;
+    
+    const uploadToastId = showToast.loading("Preparing upload...");
     
     try {
       let fileToUpload = file;
 
+      // Compress images
       if (file.type.startsWith('image/')) {
         setCompressingImage(true);
-        toast.info("Optimizing image...", { duration: 2000 });
-        
+        toast.loading("Optimizing image...", { id: uploadToastId });
         const imageCompression = await getImageCompression();
         fileToUpload = await imageCompression(file, {
           maxSizeMB: 1,
           maxWidthOrHeight: 2048,
           useWebWorker: true,
         });
-        
         setCompressingImage(false);
       }
 
-      // Import this from your ocrClient file
-    toast.info("Reading document text...");
-     setOcrStatus("Extracting text from document...");
-    const { extractTextFromSOWClient } = await import("@/services/sow/ocrClient");
-    const { rawText } = await extractTextFromSOWClient(fileToUpload, (stage, percent) => {
-      // You can update a secondary progress state here if you like
-      console.log(`${stage}: ${percent}%`);
-      setProgress(percent);
-    });
+      // OCR with throttled progress
+      toast.loading("Reading document...", { id: uploadToastId });
+      const { extractTextFromSOWClient } = await import("@/services/sow/ocrClient");
+      const { rawText } = await extractTextFromSOWClient(fileToUpload, (stage, percent) => {
+        const now = Date.now();
+        if (now - lastProgressUpdateRef.current > PROGRESS_UPDATE_THROTTLE) {
+          setProgress(percent);
+          setOcrStatus(`Reading text (${percent}%)`);
+          toast.loading(`Reading text (${percent}%)`, { id: uploadToastId });
+          lastProgressUpdateRef.current = now;
+        }
+      });
 
-    setProgress(0); 
-    setOcrStatus("Uploading to cloud...");
+      // Upload to Cloudinary
+      setProgress(0);
+      setOcrStatus("Uploading to cloud...");
+      lastProgressUpdateRef.current = 0;
+      toast.loading("Uploading...", { id: uploadToastId });
 
       const { signature, timestamp, apiKey } = await getCloudinarySignature();
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -387,7 +326,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       const abortController = new AbortController();
       uploadAbortControllerRef.current = abortController;
       
-      const uploadTimeout = setTimeout(() => abortController.abort(), 60000);
+      const uploadTimeout = setTimeout(() => abortController.abort(), UPLOAD_TIMEOUT);
 
       const uploadResult = await new Promise<{
         secure_url: string;
@@ -398,12 +337,19 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
 
         abortController.signal.addEventListener('abort', () => {
           xhr.abort();
-          reject(new Error("Upload timeout. Check your connection."));
+          reject(new Error("Upload timeout - check connection"));
         });
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            setProgress(Math.round((e.loaded / e.total) * 100));
+            const now = Date.now();
+            if (now - lastProgressUpdateRef.current > PROGRESS_UPDATE_THROTTLE) {
+              const uploadPercent = Math.round((e.loaded / e.total) * 100);
+              setProgress(uploadPercent);
+              setOcrStatus(`Uploading ${uploadPercent}%`);
+              toast.loading(`Uploading ${uploadPercent}%`, { id: uploadToastId });
+              lastProgressUpdateRef.current = now;
+            }
           }
         };
 
@@ -426,128 +372,123 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
 
       clearTimeout(uploadTimeout);
 
+      // Save to DB
+      toast.loading("Finalizing...", { id: uploadToastId });
+      setOcrStatus("Finalizing...");
+
       const res = await fetch("/api/scheme/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sowFileKey: uploadResult.public_id,
           sowFileUrl: uploadResult.secure_url,
-          rawText : rawText,
+          rawText: rawText,
         }),
       });
 
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
 
-      const newScheme: Scheme = {
+      setScheme({
         title: result.sowTitle || file.name,
         sowFileKey: uploadResult.public_id,
         uploadedAt: new Date().toISOString(),
-        processingStatus: result.processingStatus || 'pending',
+        processingStatus: 'pending',
         isManuallyAdded: false,
-      };
-
-      setScheme(newScheme);
+      });
+      
       setFile(null);
       setOpenUpload(false);
       setHasShownStatusToast(false);
-      toast.success("Scheme uploaded!");
+      
+      showToast.success("Scheme uploaded! We'll notify you when it's ready.");
+      toast.dismiss(uploadToastId);
+      
       setShowProcessingRedirect(true);
-
-      // Refresh after upload
-      setTimeout(() => {
-        fetchScheme({ showLoader: false });
-      }, 1000);
+      setTimeout(() => fetchScheme(false), 1000);
 
     } catch (error: unknown) {
       console.error("Upload error:", error);
       setNetworkError(true);
-      toast.error(error instanceof Error ? error.message : "Upload failed", {
-        duration: 5000,
-      });
+      showToast.error(error instanceof Error ? error.message : "Upload failed");
+      toast.dismiss(uploadToastId);
     } finally {
       setUploading(false);
       setCompressingImage(false);
       setProgress(0);
-      uploadAbortControllerRef.current = null;
       setOcrStatus("");
+      uploadAbortControllerRef.current = null;
     }
   }, [file, fetchScheme]);
 
   const handleCancelUpload = useCallback(() => {
-    if (uploadAbortControllerRef.current) {
-      uploadAbortControllerRef.current.abort();
-      toast.info("Upload cancelled");
-    }
+    uploadAbortControllerRef.current?.abort();
+    showToast.success("Upload cancelled");
   }, []);
 
   const navigateWhileProcessing = useCallback(() => {
-    toast.info("We'll notify you when ready!", { duration: 3000 });
+    showToast.success("We'll notify you when ready!");
     setShowProcessingRedirect(false);
     router.push("/");
   }, [router]);
 
   useEffect(() => {
     if (scheme?.processingStatus === 'complete' && !hasShownStatusToast) {
-      toast.success("Scheme ready!", {
-        duration: 6000,
-        action: {
-          label: "Edit Now",
-          onClick: handleNavigateToEdit,
-        },
+      showToast.success("Your scheme is ready! ", {
+        action: { label: "Edit Now", onClick: handleNavigateToEdit }
       });
       setHasShownStatusToast(true);
     } else if (scheme?.processingStatus === 'failed' && !hasShownStatusToast) {
-      toast.error(scheme.sowErrorMessage || "Processing failed", {
-        duration: 6000,
-      });
+      showToast.error(scheme.sowErrorMessage || "Processing failed");
       setHasShownStatusToast(true);
     }
   }, [scheme?.processingStatus, scheme?.sowErrorMessage, hasShownStatusToast, handleNavigateToEdit]);
 
-  const handleDeleteScheme = useCallback(async () => {
-    if (!scheme?.sowFileKey) {
-      toast.error("No file to delete");
-      return;
-    }
+  const handleDeleteEverything = useCallback(async () => {
+    if (!scheme) return;
 
     setDeleting(true);
+    const deleteToastId = showToast.loading("Deleting...");
 
     try {
-      if (!scheme.isManuallyAdded) {
-        await fetch(
-          `/api/cloudinary/SOWdelete?key=${encodeURIComponent(scheme.sowFileKey)}`,
-          { method: "DELETE" }
-        );
-      }
-
-      const dbRes = await fetch("/api/scheme/deleteScheme", { method: "DELETE" });
-      const dbData = await dbRes.json();
+      const dbRes = await fetch("/api/scheme/deleteScheme", { 
+        method: "DELETE",
+        cache: 'no-store',
+      });
       
-      if (!dbData.success) throw new Error(dbData.error);
+      const dbData = await dbRes.json();
+      if (!dbData.success) throw new Error(dbData.error || "Delete failed");
+
+      if (scheme.sowFileKey && !scheme.isManuallyAdded) {
+        fetch(`/api/cloudinary/SOWdelete?key=${encodeURIComponent(scheme.sowFileKey)}`, { method: "DELETE" })
+          .catch(console.error);
+      }
 
       setScheme(null);
       setHasFetched(true);
       setOpenDelete(false);
       setHasShownStatusToast(false);
-      setNetworkError(false);
-      setFile(null);
-      toast.success("Deleted");
 
-    } catch (error: unknown) {
+      showToast.success("Scheme deleted successfully");
+      toast.dismiss(deleteToastId);
+
+      router.refresh();
+
+    } catch (error: any) {
       console.error("Delete error:", error);
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      showToast.error("Delete failed");
+      toast.dismiss(deleteToastId);
     } finally {
       setDeleting(false);
     }
-  }, [scheme]);
+  }, [scheme, router]);
 
   const handleRetryProcessing = useCallback(async () => {
     if (!scheme?.sowFileKey) return;
 
+    const retryToastId = showToast.loading("Retrying...");
+
     try {
-      toast.info("Retrying...");
-      
       const res = await fetch("/api/scheme/retryProcessing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,40 +498,24 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
       const result = await res.json();
       
       if (result.success) {
-        setScheme(prev => prev ? { 
-          ...prev, 
-          processingStatus: 'pending', 
-          sowErrorMessage: undefined 
-        } : null);
+        setScheme(prev => prev ? { ...prev, processingStatus: 'pending', sowErrorMessage: undefined } : null);
         setHasShownStatusToast(false);
-        toast.success("Retry started");
+        showToast.success("Retry started successfully");
+        toast.dismiss(retryToastId);
       } else {
-        toast.error(result.error || "Retry failed");
+        throw new Error(result.error || "Retry failed");
       }
     } catch (error) {
-      toast.error("Network error");
+      showToast.error("Retry failed - please try again");
+      toast.dismiss(retryToastId);
     }
   }, [scheme?.sowFileKey]);
 
   const handleManualRetry = useCallback(() => {
     setNetworkError(false);
-    setLoading(true);
-    setScheme(null);
-    setHasFetched(false);
-    
-    // Force refresh
-    const syncKey = "sow_last_sync";
-    sessionStorage.setItem(syncKey, Date.now().toString());
-    router.refresh();
-    
-    setTimeout(() => {
-      if (isMountedRef.current) {
-        fetchScheme({ showLoader: true });
-      }
-    }, 100);
-  }, [fetchScheme, router]);
+    fetchScheme(true);
+  }, [fetchScheme]);
 
-  // ✅ Show loading skeleton
   if (loading || !hasFetched) {
     return (
       <div className="min-h-screen bg-background p-3 sm:p-4">
@@ -661,7 +586,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
             />
             
             {scheme.processingStatus === "failed" && (
-              <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed animate-in slide-in-from-top-2">
+              <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed">
                 <p className="text-center text-sm text-muted-foreground mb-3">
                   Extraction failed. You can retry above or start fresh below.
                 </p>
@@ -709,7 +634,7 @@ export default function SchemeOfWorkPage({ initialUserId }: { initialUserId: str
           schemeTitle={scheme?.title || ""}
           isManuallyAdded={scheme?.isManuallyAdded || false}
           deleting={deleting}
-          onConfirm={handleDeleteScheme}
+          onConfirm={handleDeleteEverything}
         />
       </div>
     </div>

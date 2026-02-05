@@ -107,10 +107,10 @@ export default function OnboardingParent() {
 
                 const res = await saveOnboardingAction(formData)
                 if (res.success) {
-                    toast.success("Profile setup complete! 🎉", {
+                    toast.success("Profile setup complete! ", {
                         description: "Welcome to your teaching dashboard"
                     })
-                    router.push("/community/news-feed")
+                    router.push("/")
                 } else {
                     toast.error("Setup incomplete", {
                         description: "Please check all fields and try again"

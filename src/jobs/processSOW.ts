@@ -44,7 +44,7 @@ export async function processSchemeOfWork(
       })
       .where(eq(onboarding.userId, userId));
 
-    console.log("✅ [PROCESS] SOW Successfully Structured and Saved.");
+    console.log(" [PROCESS] SOW Successfully Structured and Saved.");
 
   } catch (error: any) {
     console.error("❌ [PROCESS ERROR]", error);

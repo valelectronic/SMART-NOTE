@@ -532,7 +532,7 @@ export default function EditingSchemeOfWorkPage() {
               >
                 <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <h1 className="text-sm sm:text-base font-bold whitespace-nowrap truncate">Edit Scheme</h1>
+              <h1 className="text-sm sm:text-base font-bold whitespace-nowrap truncate">upload SOW</h1>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {localBackupInfo && (

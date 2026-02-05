@@ -25,6 +25,7 @@ import {
   AlertCircle,
   MoreVertical,
   Trash2,
+  Upload,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -144,8 +145,6 @@ export default function ViewSchemeOfWorkPage() {
   };
 
  const handleDelete = async () => {
-    // ✅ Replaced window.confirm with toast.promise or custom confirm
-    // For a simple replacement of confirm(), we use toast action:
     toast("Delete Scheme of Work?", {
       description: "This action cannot be undone.",
       action: {
@@ -189,12 +188,12 @@ export default function ViewSchemeOfWorkPage() {
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
-                onClick={() => router.back()}
+                onClick={() => router.push("/community/schemeOfWork/editScheme")}
                 size="icon"
               >
-                <ChevronLeft />
+                <Upload />
               </Button>
-              <h1 className="text-lg font-bold">Scheme of Work</h1>
+              <h1 className="text-lg font-bold">Add scheme of work</h1>
             </div>
           </div>
         </header>

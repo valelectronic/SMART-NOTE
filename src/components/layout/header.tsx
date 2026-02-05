@@ -219,7 +219,7 @@ const initials = (profile?.fullName || user?.name)
         className="mx-4 my-3 p-3 cursor-pointer hover:shadow-md transition-shadow"
         onClick={() => {
           close();
-          router.push("/community/profile");
+          router.push("/profile-settings");
         }}
       >
         <div className="flex items-center gap-3">
