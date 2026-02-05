@@ -37,13 +37,8 @@ export default function AboutUsPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 px-4">
               <Button size="lg" className="w-full sm:w-auto text-sm sm:text-base h-11 sm:h-12" asChild>
-                <Link href="/auth/sign-up">
+                <Link href="/login">
                   Get Started Free
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto text-sm sm:text-base h-11 sm:h-12" asChild>
-                <Link href="/contact">
-                  Contact Us
                 </Link>
               </Button>
             </div>

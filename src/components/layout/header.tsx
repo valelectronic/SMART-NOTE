@@ -24,10 +24,6 @@ import Image from "next/image";
 import { useUser } from "@/context/user.context";
 
 
-
-
-
-
 export default function Header() {
 
   const { profile } = useUser();
