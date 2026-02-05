@@ -9,7 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: baseUrl,
       lastModified: new Date(),
       changeFrequency: 'daily',
-      priority: 1,
+      priority: 1, // The most important page
     },
     {
       url: `${baseUrl}/login`,
@@ -21,8 +21,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${baseUrl}/community/schemeOfWork`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
-      priority: 0.5,
+      priority: 0.7,
     },
-    // Add other public links here
+    {
+      url: `${baseUrl}/community/schemeOfWork/editScheme`, 
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    },
+    {
+      url: `${baseUrl}/community/aboutUs`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.4,
+    },
+    {
+      url: `${baseUrl}/community/schemeOfWork/viewScheme`, 
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.4,
+    }
   ]
 }
