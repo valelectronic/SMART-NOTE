@@ -112,9 +112,10 @@ const initials = (profile?.fullName || user?.name)
                           <Image
             src="/logo.jpg"      // image file in /public directory
             alt="My logo"        // always required for accessibility
-            width={25}          // required: width in px
-            height={25}         // required: height in px
-            className="w-5 h-5 rounded-full"
+            width={30}          // required: width in px
+            height={30}         // required: height in px
+            className="rounded-full object-cover"
+            priority
           />
 
               </div>

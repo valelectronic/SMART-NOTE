@@ -191,6 +191,7 @@ export const schemeWeeks = pgTable("scheme_weeks", {
 });
 
 // Updated for flexibility with optional content
+// Updated Schema: Performance Objectives Removed
 export const schemeSubTopics = pgTable("scheme_sub_topics", {
     id: varchar("id", { length: 36 })
         .primaryKey()
@@ -202,10 +203,8 @@ export const schemeSubTopics = pgTable("scheme_sub_topics", {
 
     topicTitle: text("topic_title").notNull(), 
     
-    //  REMOVED .notNull() to allow empty content for breaks/exams
+    // This holds the "Meaning, types, importance..." text from your AI
     topicContent: text("topic_content"), 
-    
-    performanceObjectives: text("performance_objectives"), 
     
     extractedFrom: text("extracted_from"), 
 
@@ -263,46 +262,57 @@ export const lessonNotes = pgTable("lesson_notes", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
 
-  userId: varchar("user_id", { length: 36 })
+  userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
 
   onboardingId: varchar("onboarding_id", { length: 36 })
     .references(() => onboarding.id, { onDelete: "set null" }),
 
- // CHANGED: Reference the new sub-topic table
-    schemeSubTopicId: varchar("scheme_sub_topic_id", { length: 36 })
-        .references(() => schemeSubTopics.id, { onDelete: "set null" }),
+  schemeSubTopicId: varchar("scheme_sub_topic_id", { length: 36 })
+    .references(() => schemeSubTopics.id, { onDelete: "set null" }),
 
+  // --- CORE CONTENT ---
   title: varchar("title", { length: 200 }).notNull(),
   subject: varchar("subject", { length: 100 }).notNull(),
   topic: text("topic").notNull(),
   gradeLevel: varchar("grade_level", { length: 50 }).notNull(),
   curriculum: curriculumStandardEnum("curriculum").notNull(),
+  content: text("content").notNull(), // The latest version of the note
+  
+  // --- VERSIONING & CORRECTIONS (The "Premium" additions) ---
+  // To keep track of the original note before corrections
+  originalContent: text("original_content"), 
+  
+  // Rule: Max 2 corrections
+  editCount: integer("edit_count").default(0).notNull(), 
+  
+  // The teacher's specific instruction for the last correction
+  lastCorrectionInstruction: text("last_correction_instruction"),
 
-  content: text("content").notNull(),
-  visualAids: text("visual_aids"),
-  formatUsed: preferredNoteFormatEnum("format_used").notNull(),
-  reviewNotes: text("review_notes"),
-  wordCount: integer("word_count"),
-  downloadUrl: text("download_url"),
-
-  term: varchar("term", { length: 20 }),
-  sessionYear: varchar("session_year", { length: 10 }),
-
-  generationTime: integer("generation_time"),
+  // --- LIMITS & COOLDOWNS ---
+  // To enforce the 5-minute cooldown between edits
+  lastGeneratedAt: timestamp("last_generated_at").defaultNow(),
+  
+  // --- AI METADATA ---
+  promptUsed: text("prompt_used"), // The full contextual prompt
   aiModelUsed: varchar("ai_model_used", { length: 50 }),
-  promptVersion: varchar("prompt_version", { length: 20 }),
+  providerUsed: varchar("provider_used", { length: 20 }),
+  generationTime: integer("generation_time"), 
+  wordCount: integer("word_count"),
 
+  // --- STATUS ---
+  formatUsed: preferredNoteFormatEnum("format_used").notNull(),
   completionStatus: completionStatusEnum("completion_status").default("incomplete"),
-
   isDraft: boolean("is_draft").default(true),
   isPublic: boolean("is_public").default(false),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
 });
-
 
 
 /* ---------- Relations ---------- */

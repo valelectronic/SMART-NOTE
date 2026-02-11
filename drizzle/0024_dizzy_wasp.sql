@@ -1,0 +1,1 @@
+ALTER TABLE "scheme_sub_topics" DROP COLUMN "performance_objectives";

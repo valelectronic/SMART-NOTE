@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
-import { onboarding } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { onboarding, schemeWeeks, schemeSubTopics } from "@/lib/db/schema";
+import { eq, desc, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
     try {
-        // 1. AUTH CHECK (Moved inside try-catch to handle DB connection issues)
+        // 1. AUTH CHECK
         const session = await auth.api.getSession({ headers: await headers() });
         
         if (!session?.user) {
@@ -19,42 +19,55 @@ export async function GET(request: Request) {
 
         const userId = session.user.id;
 
-        // 2. FETCH LATEST RECORD
-        const currentScheme = await db.query.onboarding.findFirst({
+        // 2. FETCH LATEST ONBOARDING RECORD
+        const currentRecord = await db.query.onboarding.findFirst({
             where: eq(onboarding.userId, userId),
             orderBy: [desc(onboarding.updatedAt)], 
-            columns: {
-                sowFileKey: true,
-                sowTitle: true,
-                sowUploadedAt: true,
-                sowProcessingStatus: true,
-                sowErrorMessage: true,
-                sowExtractedText: true,
-                sowEdited: true,
-                updatedAt: true,
-            }
         });
 
-        // 3. FORMAT RESPONSE
-        let schemeData = null;
-        if (currentScheme) {
-            schemeData = {
-                title: currentScheme.sowTitle,
-                sowFileKey: currentScheme.sowFileKey,
-                uploadedAt: currentScheme.sowUploadedAt?.toISOString(),
-                processingStatus: currentScheme.sowProcessingStatus,
-                sowErrorMessage: currentScheme.sowErrorMessage,
-                sowEdited: currentScheme.sowEdited,
-                updatedAt: currentScheme.updatedAt?.toISOString(),
-                sowExtractedText: currentScheme.sowExtractedText,
-                extractedText: currentScheme.sowExtractedText,
-                _internal_sync_id: Date.now() 
-            };
+        if (!currentRecord) {
+            return NextResponse.json({ success: true, scheme: null });
         }
+
+        // 3. FETCH THE ACTUAL STRUCTURED WEEKS AND TOPICS (The Missing Step)
+        // We join the weeks and sub-topics to get a clean list for the editor
+        const structuredWeeks = await db
+            .select({
+                weekNumber: schemeWeeks.weekNumber,
+                topicTitle: schemeSubTopics.topicTitle,
+                content: schemeSubTopics.topicContent, // Mapping topicContent to 'content' for the frontend
+            })
+            .from(schemeSubTopics)
+            .innerJoin(schemeWeeks, eq(schemeSubTopics.schemeWeekId, schemeWeeks.id))
+            .where(eq(schemeWeeks.onboardingId, currentRecord.id))
+            .orderBy(asc(schemeWeeks.weekNumber));
+
+        // 4. FORMAT RESPONSE
+        // We now include the 'weeks' array which contains the real database rows
+        const schemeData = {
+            title: currentRecord.sowTitle,
+            sowFileKey: currentRecord.sowFileKey,
+            uploadedAt: currentRecord.sowUploadedAt?.toISOString(),
+            processingStatus: currentRecord.sowProcessingStatus,
+            sowErrorMessage: currentRecord.sowErrorMessage,
+            sowEdited: currentRecord.sowEdited,
+            updatedAt: currentRecord.updatedAt?.toISOString(),
+            
+            // This is what the Edit Page will loop over
+            weeks: structuredWeeks, 
+            
+            // Fallback: If the relational tables are empty but the blob exists
+            // we try to parse the blob so the user has something to see
+            extractedText: structuredWeeks.length > 0 
+                ? JSON.stringify(structuredWeeks) 
+                : currentRecord.sowExtractedText,
+                
+            _internal_sync_id: Date.now() 
+        };
 
         const response = NextResponse.json({ success: true, scheme: schemeData });
         
-        // 4. AGGRESSIVE CACHE BUSTING
+        // 5. AGGRESSIVE CACHE BUSTING
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         response.headers.set('Pragma', 'no-cache');
         response.headers.set('Expires', '0');
@@ -64,11 +77,10 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("[API ERROR]:", error);
         
-        // ✅ Specific check for the "Connection terminated" error
         if (error.message?.includes("terminated") || error.message?.includes("Connection")) {
             return NextResponse.json(
                 { success: false, error: "Database is busy. Retrying..." },
-                { status: 503 } // 503 Service Unavailable is better for timeouts
+                { status: 503 }
             );
         }
 
