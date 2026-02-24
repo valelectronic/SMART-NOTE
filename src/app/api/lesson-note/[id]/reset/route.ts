@@ -5,26 +5,18 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
-// ✅ Explicitly define the context type to match Next.js 15 requirements
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
-
 export async function POST(
-  request: NextRequest, // ✅ Use NextRequest instead of Request
-  context: RouteContext // ✅ Pass the context object directly
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
   try {
-    // 1️⃣ RESOLVE PARAMS
-    const { id } = await context.params;
+    const { id } = params;
 
-    // 2️⃣ AUTH
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 3️⃣ FETCH NOTE
     const existing = await db.query.lessonNotes.findFirst({
       where: eq(lessonNotes.id, id),
     });
@@ -33,12 +25,10 @@ export async function POST(
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
-    // Ownership check
     if (existing.userId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 4️⃣ VALIDATE CONTENT
     if (!existing.originalContent) {
       return NextResponse.json(
         { error: "No original version stored for this note." },
@@ -53,7 +43,6 @@ export async function POST(
       );
     }
 
-    // 5️⃣ RESET EXECUTION
     const [updated] = await db
       .update(lessonNotes)
       .set({
