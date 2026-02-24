@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { lessonNotes } from "@/lib/db/schema";
@@ -8,27 +7,30 @@ import { auth } from "@/lib/auth";
 
 export async function POST(
   _req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> } // ✅ Change: params is now a Promise
 ) {
   try {
-    // 1️⃣ AUTH
+    // 1️⃣ RESOLVE PARAMS
+    const { id } = await context.params; // ✅ Change: await the params
+
+    // 2️⃣ AUTH
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // 2️⃣ FETCH NOTE — verify it belongs to this user
+    // 3️⃣ FETCH NOTE — Use the 'id' we just awaited
     const existing = await db.query.lessonNotes.findFirst({
-      where: eq(lessonNotes.id, params.id),
+      where: eq(lessonNotes.id, id),
     });
 
     if (!existing)
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
 
-    // Ownership check — prevent resetting another user's note
+    // Ownership check
     if (existing.userId !== session.user.id)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // 3️⃣ NOTHING TO RESET
+    // 4️⃣ NOTHING TO RESET
     if (!existing.originalContent)
       return NextResponse.json(
         { error: "No original version stored for this note." },
@@ -41,8 +43,7 @@ export async function POST(
         { status: 400 }
       );
 
-    // 4️⃣ RESET — restore original content, zero the edit counter
-    // No AI call made — zero tokens consumed
+    // 5️⃣ RESET
     const [updated] = await db
       .update(lessonNotes)
       .set({
@@ -50,7 +51,7 @@ export async function POST(
         editCount: 0,
         lastGeneratedAt: new Date(),
       })
-      .where(eq(lessonNotes.id, params.id))
+      .where(eq(lessonNotes.id, id))
       .returning();
 
     return NextResponse.json({ status: "success", note: updated });
