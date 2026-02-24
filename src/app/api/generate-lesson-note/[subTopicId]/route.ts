@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"; // ✅ Use NextRequest
+import { NextRequest, NextResponse } from "next/server"; 
 import { db } from "@/lib/db";
 import { lessonNotes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
 export async function GET(
-  request: NextRequest, // ✅ Standardize to NextRequest
+  request: NextRequest,
   context: { params: Promise<{ subTopicId: string }> }
 ) {
   try {
