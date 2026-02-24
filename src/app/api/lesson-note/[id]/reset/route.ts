@@ -5,21 +5,26 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
+// Define the shape of the params
+type RouteParams = {
+  id: string;
+};
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> } // ✅ Destructured Promise
+  // ✅ NEXT.JS 15 REQUIREMENT: params must be wrapped in a Promise
+  { params }: { params: Promise<RouteParams> } 
 ) {
   try {
-    // 1️⃣ Resolve the async params (Required in Next.js 15)
-    const { id } = await params;
+    // ✅ MUST await the params before using them
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
 
-    // 2️⃣ Authenticate user
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 3️⃣ Fetch existing note
     const existing = await db.query.lessonNotes.findFirst({
       where: eq(lessonNotes.id, id),
     });
@@ -28,12 +33,10 @@ export async function POST(
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
-    // 4️⃣ Ownership check
     if (existing.userId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 5️⃣ Validate original content
     if (!existing.originalContent) {
       return NextResponse.json(
         { error: "No original version stored for this note." },
@@ -41,7 +44,6 @@ export async function POST(
       );
     }
 
-    // 6️⃣ Reset note content
     const [updated] = await db
       .update(lessonNotes)
       .set({
@@ -52,15 +54,11 @@ export async function POST(
       .where(eq(lessonNotes.id, id))
       .returning();
 
-    // 7️⃣ Return success
     return NextResponse.json({ status: "success", note: updated });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
     console.error("RESET_ROUTE_ERROR:", errorMessage);
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
