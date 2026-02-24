@@ -175,14 +175,12 @@ export default function LessonNotePage() {
   };
 
   // ─── Reset to original — no tokens consumed ───────────────────────────────
-  // Uses `originalContent` already stored in the DB when the note was first created.
   const handleResetToOriginal = async () => {
     if (!generatedNote?.originalContent) {
       toast.error("No original version found for this note.");
       return;
     }
 
-    // If original and current are already the same, nothing to do
     if (generatedNote.content === generatedNote.originalContent) {
       toast.info("This note is already at its original version.");
       return;
@@ -202,7 +200,6 @@ export default function LessonNotePage() {
 
       const data = await res.json();
 
-      // Optimistically update the note content locally
       setGeneratedNote((prev: any) => ({
         ...prev,
         content: prev.originalContent,
@@ -284,7 +281,6 @@ export default function LessonNotePage() {
             break;
 
           case "EDIT_LIMIT":
-            // Dismiss the loading toast, then show the inline banner instead
             toast.dismiss(toastId);
             setEditLimitReached(true);
             if (!isPremium) {
@@ -419,7 +415,8 @@ export default function LessonNotePage() {
       />
 
       <main className="flex-1 overflow-y-auto bg-background">
-        <div className="max-w-4xl mx-auto py-8 px-6 lg:px-10">
+        {/* ↓ px-4 on mobile (was px-6), lg stays px-10 */}
+        <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-10">
           <Suspense fallback={<NoteLoadingSkeleton />}>
             {selectedTopic ? (
               <div className="space-y-6">
@@ -477,12 +474,16 @@ export default function LessonNotePage() {
                       </p>
                     )}
 
-                    {/* Note viewer */}
+                    {/* Note viewer — edge-to-edge on mobile, card on desktop */}
                     <div
                       ref={printRef}
                       className={[
-                        "rounded-xl border border-border bg-card overflow-hidden",
-                        "print:border-0 print:rounded-none",
+                        "overflow-hidden bg-card",
+                        // Mobile: flush to screen edges, no radius
+                        // Desktop: contained card with border and radius
+                        "-mx-4 sm:mx-0",
+                        "border-y sm:border sm:rounded-xl border-border",
+                        "print:border-0 print:rounded-none print:mx-0",
                         "transition-opacity duration-200",
                         isRefining || isResetting
                           ? "opacity-50 pointer-events-none"
