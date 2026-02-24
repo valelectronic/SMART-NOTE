@@ -1,30 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { lessonNotes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
-/**
- * Next.js 15 Route Handler for Resetting a Lesson Note.
- * 'params' must be treated as a Promise.
- */
+// ✅ Explicitly define the context type to match Next.js 15 requirements
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
+  request: NextRequest, // ✅ Use NextRequest instead of Request
+  context: RouteContext // ✅ Pass the context object directly
 ) {
   try {
-    // 1️⃣ Resolve the dynamic route parameters
+    // 1️⃣ RESOLVE PARAMS
     const { id } = await context.params;
 
-    // 2️⃣ Authenticate the session
+    // 2️⃣ AUTH
     const session = await auth.api.getSession({ headers: await headers() });
-    
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 3️⃣ Fetch the note and verify ownership
+    // 3️⃣ FETCH NOTE
     const existing = await db.query.lessonNotes.findFirst({
       where: eq(lessonNotes.id, id),
     });
@@ -33,12 +33,12 @@ export async function POST(
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
-    // Security: Ensure the teacher only resets their own notes
+    // Ownership check
     if (existing.userId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 4️⃣ Validate reset conditions
+    // 4️⃣ VALIDATE CONTENT
     if (!existing.originalContent) {
       return NextResponse.json(
         { error: "No original version stored for this note." },
@@ -53,8 +53,7 @@ export async function POST(
       );
     }
 
-    // 5️⃣ Perform the reset
-    // This updates the content back to the original version and resets editCount
+    // 5️⃣ RESET EXECUTION
     const [updated] = await db
       .update(lessonNotes)
       .set({
@@ -65,10 +64,7 @@ export async function POST(
       .where(eq(lessonNotes.id, id))
       .returning();
 
-    return NextResponse.json({ 
-      status: "success", 
-      note: updated 
-    });
+    return NextResponse.json({ status: "success", note: updated });
 
   } catch (error: any) {
     console.error("RESET_ROUTE_ERROR:", error);
