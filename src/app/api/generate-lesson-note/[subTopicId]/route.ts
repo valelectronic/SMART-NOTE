@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server"; // ✅ Use NextRequest
 import { db } from "@/lib/db";
 import { lessonNotes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -6,20 +6,22 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
 export async function GET(
-  req: Request,
-  context: { params: Promise<{ subTopicId: string }> } // note Promise here
+  request: NextRequest, // ✅ Standardize to NextRequest
+  context: { params: Promise<{ subTopicId: string }> }
 ) {
   try {
+    // 1️⃣ AUTH
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const params = await context.params; // <- unwrap the Promise
-    const { subTopicId } = params;
+    // 2️⃣ PARAMS (Unwrap Promise)
+    const { subTopicId } = await context.params;
 
     console.log("📥 GET /api/lesson-note", subTopicId);
 
+    // 3️⃣ DB QUERY
     const existingNote = await db.query.lessonNotes.findFirst({
       where: eq(lessonNotes.schemeSubTopicId, subTopicId),
     });
