@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding" ADD COLUMN "last_payment_date" timestamp DEFAULT now();

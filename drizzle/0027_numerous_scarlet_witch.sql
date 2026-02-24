@@ -1,0 +1,1 @@
+ALTER TABLE "lesson_notes" ADD COLUMN "regen_count" integer DEFAULT 0 NOT NULL;

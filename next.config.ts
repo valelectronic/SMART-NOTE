@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // ✅ Move out of experimental for Next.js 16+
+  //  Move out of experimental for Next.js 16+
   serverExternalPackages: ['tesseract.js', 'sharp'],
 
   images: {

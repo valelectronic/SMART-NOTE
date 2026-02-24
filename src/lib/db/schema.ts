@@ -1,6 +1,6 @@
 
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, pgEnum, varchar,  integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, pgEnum, varchar,  integer , decimal} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const user = pgTable("user", {
@@ -69,8 +69,6 @@ export const verification = pgTable("verification", {
 });
 
 
-
-
 // onboarding enums
 export const approvalStatusEnum = pgEnum("approval_status", [
   "pending",
@@ -115,6 +113,13 @@ export const sowProcessingStatusEnum = pgEnum("sow_processing_status", [
     "idle"
 ]);
 
+// ✅ NEW: Subscription Tiers
+export const subscriptionTierEnum = pgEnum("subscription_tier", [
+  "free",
+  "premium",
+  "school" // For bulk institutional access
+]);
+
 // onboarding table
 export const onboarding = pgTable("onboarding", {
 
@@ -141,6 +146,8 @@ export const onboarding = pgTable("onboarding", {
   curriculumStandard: curriculumStandardEnum("curriculum_standard").notNull(),
   preferredNoteFormat: preferredNoteFormatEnum("preferred_note_format").notNull(),
 
+
+
   //  SOW METADATA (Permanent Record for Frontend)
   sowTitle: varchar("sow_title", { length: 255 }), 
   sowUploadedAt: timestamp("sow_uploaded_at"), 
@@ -151,11 +158,20 @@ export const onboarding = pgTable("onboarding", {
 
 //  RAW EXTRACTED TEXT (CRITICAL FOR AI + PARSING)
       sowExtractedText: text("sow_extracted_text"),
-
        sowEdited: boolean("sow_edited").default(false),
 
+       // ✅ PAYSTACK & SUBSCRIPTION FIELDS
+  subscriptionTier: subscriptionTierEnum("subscription_tier").default("free"),
+  paystackCustomerId: varchar("paystack_customer_id", { length: 100 }),
+  paystackSubscriptionCode: varchar("paystack_subscription_code", { length: 100 }),
+  subscriptionExpiresAt: timestamp("subscription_expires_at"),
+  lastPaymentDate: timestamp("last_payment_date").defaultNow(),
 
 
+  // ✅ TRIAL TRACKING
+  premiumTrialUsed: boolean("premium_trial_used").default(false),
+  premiumTrialUsedAt: timestamp("premium_trial_used_at"),
+  // Add this to your onboarding table in schema.ts
   //  Settings
   approvalStatus: approvalStatusEnum("approval_status").notNull().default("pending"),
   profileCompleted:  boolean("profile_completed").default(false),
@@ -163,6 +179,38 @@ export const onboarding = pgTable("onboarding", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+
+// ✅ NEW: AI Usage & Financial Analytics
+export const aiUsageAnalytics = pgTable("ai_usage_analytics", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  onboardingId: varchar("onboarding_id", { length: 36 }).references(() => onboarding.id),
+
+  action: varchar("action", { length: 30 }).notNull(), // "generation", "refinement", "regeneration"
+  topicTitle: text("topic_title"),
+
+  // Cost Tracking (scale 8 to catch tiny token costs)
+  promptTokens: integer("prompt_tokens"),
+  completionTokens: integer("completion_tokens"),
+  estimatedCostUsd: decimal("estimated_cost_usd", { precision: 12, scale: 8 }), 
+  
+  aiProvider: varchar("ai_provider", { length: 50 }), // "anthropic", "groq"
+  aiModel: varchar("ai_model", { length: 50 }),
+  
+  wasCacheHit: boolean("was_cache_hit").default(false),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// ✅ NEW: Export & Print History (To limit free users)
+export const exportHistory = pgTable("export_history", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  lessonNoteId: varchar("lesson_note_id", { length: 36 }).references(() => lessonNotes.id),
+  
+  exportType: varchar("export_type", { length: 20 }).notNull(), // "pdf", "print", "word"
+  exportedAt: timestamp("exported_at").defaultNow().notNull(),
 });
 
 //  Scheme Topics Table
@@ -286,6 +334,7 @@ export const lessonNotes = pgTable("lesson_notes", {
   
   // Rule: Max 2 corrections
   editCount: integer("edit_count").default(0).notNull(), 
+  regenCount: integer("regen_count").default(0).notNull(),
   
   // The teacher's specific instruction for the last correction
   lastCorrectionInstruction: text("last_correction_instruction"),
@@ -321,6 +370,7 @@ export const onboardingRelations = relations(onboarding, ({ one, many }) => ({
      references: [user.id] }),
   lessonNotes: many(lessonNotes),
   schemeWeeks: many(schemeWeeks),
+  analytics : many(aiUsageAnalytics),
 }));
 
 
@@ -329,7 +379,18 @@ export const userRelations = relations(user, ({ many }) => ({
   onboarding: many(onboarding),
   profileSettings: many(ProfileSettings),
   lessonNotes: many(lessonNotes),
+  analytics: many(aiUsageAnalytics),
    
+}));
+
+export const aiUsageAnalyticsRelations = relations(aiUsageAnalytics, ({ one }) => ({
+  user: one(user, { fields: [aiUsageAnalytics.userId], references: [user.id] }),
+  onboarding: one(onboarding, { fields: [aiUsageAnalytics.onboardingId], references: [onboarding.id] }),
+}));
+
+export const exportHistoryRelations = relations(exportHistory, ({ one }) => ({
+  user: one(user, { fields: [exportHistory.userId], references: [user.id] }),
+  lessonNote: one(lessonNotes, { fields: [exportHistory.lessonNoteId], references: [lessonNotes.id] }),
 }));
 
 export const schemeWeeksRelations = relations(schemeWeeks, ({ one, many }) => ({

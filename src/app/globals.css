@@ -1,7 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+
 @custom-variant dark (&:is(.dark *));
+
+
 
 @theme inline {
   --color-background: var(--background);
@@ -64,13 +67,14 @@
   --accent: #42546d;            /* same blue for hover */
   --accent-foreground: #ffffff;
 
-  --muted: #fefefe;
+  --muted: #f5f7fa;
   --muted-foreground: #6b7c93;  /* 60 % tint of yinmn-blue */
 
   --destructive: oklch(0.65 0.22 25);
-  --border: #fefefe;            /* line */
+  --border: #d1d5db; /* light gray like printed lines */           /* line */
   --input: #fefefe;
   --ring: #42546d;
+  
 }
 .dark {
   --background: oklch(0.15 0.01 250);
@@ -96,11 +100,104 @@
   --ring: oklch(0.78 0.19 135);
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+/* ✅ Optimized prose styles - only what's needed */
+.prose {
+  max-width: none !important;
+  color: var(--foreground) !important;
+  line-height: 1.7 !important;
+}
+
+/* Section headers */
+.prose h2, .prose h3 {
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  color: var(--primary) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: 0.375rem !important;
+}
+
+/* Tables - mobile optimized */
+.prose table {
+  width: 70% !important;
+  border-collapse: collapse !important;
+  margin: 1rem 0 !important;
+  border: 1px solid var(--border) !important;
+  font-size: 0.875rem !important; /* 14px base */
+}
+
+.prose td, .prose th {
+  padding: 0.5rem !important; /* Tighter on mobile */
+  border: 1px solid var(--border) !important;
+  text-align: left !important;
+}
+
+@media (min-width: 640px) {
+  .prose td, .prose th {
+    padding: 0.75rem !important; /* More space on desktop */
   }
-  body {
-    @apply bg-background text-foreground;
+}
+
+/* Math - mobile friendly */
+.katex-display {
+  margin: 1rem 0 !important;
+  padding: 0.75rem !important;
+  background: var(--muted) !important;
+  border-radius: 0.5rem !important;
+  overflow-x: auto !important;
+  font-size: 0.95em !important; /* Slightly smaller */
+}
+
+.katex {
+  font-size: 1em !important; /* Readable size */
+}
+
+/* ✅ Mermaid - optimized for mobile */
+.mermaid-unrendered svg,
+.mermaid svg {
+  max-width: 70% !important;
+  height: auto !important;
+  margin: 0 auto !important;
+  display: block !important;
+}
+
+/* Mobile: Make mermaid text readable */
+@media (max-width: 640px) {
+  .mermaid svg {
+    font-size: 12px !important; /* Larger text on mobile */
   }
+  
+  .mermaid .nodeLabel {
+    font-size: 13px !important;
+  }
+}
+
+/* Desktop: Normal size */
+@media (min-width: 641px) {
+  .mermaid svg {
+    font-size: 14px !important;
+  }
+}
+
+/* ✅ Print styles - keep it simple */
+@media print {
+  .katex-display, .mermaid-unrendered {
+    background: transparent !important;
+    border: 1px solid #333 !important;
+  }
+  
+  h2, h3 {
+    page-break-after: avoid !important;
+  }
+  
+  .prose table {
+    page-break-inside: auto !important;
+  }
+}
+
+/* ✅ Performance: Reduce paint/layout shifts */
+.mermaid-unrendered {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

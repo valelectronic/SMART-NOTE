@@ -19,7 +19,7 @@ const protectedPrefixes = [
  
 ] as const
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers })
   
 

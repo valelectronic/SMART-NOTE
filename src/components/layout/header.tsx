@@ -68,6 +68,7 @@ const initials = (profile?.fullName || user?.name)
       { label: "Upload scheme of work", href: "/community/schemeOfWork", icon: Upload },
         { label: "lesson Note", href: "/myNotes/lessonNote", icon: NotebookText },
          { label: "About Us", href: "/community/aboutUs", icon: Users },
+          { label: "Dashboard", href: "/community/dashboard", icon: Home },
         { label: "Settings", href: "/profile-settings", icon: Settings },
       ]
   : [];
