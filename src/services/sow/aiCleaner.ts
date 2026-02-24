@@ -10,6 +10,16 @@ export interface WeekEntry {
   content: string;
 }
 
+interface AIWeekResponse {
+  weekNumber: number | string;
+  topicTitle?: string;
+  content?: string;
+}
+
+interface AISchemeResponse {
+  weeks: AIWeekResponse[];
+}
+
 export async function cleanOcrWithAI(rawText: string): Promise<WeekEntry[]> {
   try {
     const response = await groq.chat.completions.create({
@@ -157,27 +167,30 @@ OUTPUT: {"weekNumber": 4, "topicTitle": "The Human Digestive System", "content":
       ],
     });
 
-    const content = response.choices[0]?.message?.content || '{"weeks":[]}';
-    const parsed = JSON.parse(content);
-    const aiWeeks = parsed.weeks || [];
+const content = response.choices[0]?.message?.content || '{"weeks":[]}';
+  const parsed = JSON.parse(content) as AISchemeResponse;
+    const aiWeeks = parsed.weeks || [];
 
-    // Ensure we always return exactly 13 weeks
-    return Array.from({ length: 13 }, (_, i) => {
-      const target = i + 1;
-      const found = aiWeeks.find((w: any) => Number(w.weekNumber) === target);
-      return {
-        weekNumber: target,
-        topicTitle: found?.topicTitle?.trim() || "",
-        content: found?.content?.trim() || "",
-      };
-    });
-  } catch (error: any) {
-    console.error("AI Error:", error.message);
-    return Array.from({ length: 13 }, (_, i) => ({ 
-      weekNumber: i + 1, 
-      topicTitle: "", 
-      content: "" 
-    }));
+    return Array.from({ length: 13 }, (_, i) => {
+      const target = i + 1;
+      // ✅ Fix: Change 'any' to 'AIWeekResponse'
+      const found = aiWeeks.find((w: AIWeekResponse) => Number(w.weekNumber) === target);
+      return {
+        weekNumber: target,
+        topicTitle: found?.topicTitle?.trim() || "",
+        content: found?.content?.trim() || "",
+      };
+    });
+  } catch (error: unknown) { // ✅ Fix: 'any' replaced with 'unknown'
+    // ✅ Fix: Handle 'unknown' error type safely
+    const errorMessage = error instanceof Error ? error.message : "Unknown AI Error";
+    console.error("AI Error:", errorMessage);
+    
+    return Array.from({ length: 13 }, (_, i) => ({ 
+      weekNumber: i + 1, 
+      topicTitle: "", 
+      content: "" 
+    }));
   }
 }
 

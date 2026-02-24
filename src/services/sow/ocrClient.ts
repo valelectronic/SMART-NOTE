@@ -31,8 +31,10 @@ export async function extractTextFromSOWClient(
       .join("\n");
 
     return { rawText: cleanedText };
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (worker) await worker.terminate();
-    throw new Error("OCR failed: " + (error.message || "Unknown error"));
+   const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("OCR Client Error:", errorMessage);
+    throw new Error(`OCR processing failed: ${errorMessage}`);
   }
 }

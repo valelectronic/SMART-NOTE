@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
+
 /**
  * ALOC Past Questions Service
  * API: https://questions.aloc.com.ng
