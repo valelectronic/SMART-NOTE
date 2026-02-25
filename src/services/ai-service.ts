@@ -1,4 +1,3 @@
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
@@ -44,38 +43,25 @@ function normalizeSubject(subject: string): string {
 
 // ─── DISPLAY FORMATTERS ────────────────────────────────────────────────────────
 
-// Converts DB class keys to human-readable display names.
-// Handles formats: "sss_1_3", "jss_2_1", "primary_4", "SS 1", "JSS 2", "Primary 4"
 function formatClass(raw: string): string {
   if (!raw) return "Not specified";
   const s = raw.toLowerCase().replace(/[-\s]+/g, "_");
-
-  // Already human-readable (no underscores after normalisation) — return cleaned up
   if (!s.includes("_")) {
     return raw.replace(/\b\w/g, c => c.toUpperCase());
   }
-
-  // Pattern: sss_1_3 → SS 1, jss_2_1 → JSS 2, primary_4 → Primary 4
-  // IMPORTANT: check jss before sss — 'jss' contains 'ss' so sss regex would match it first
   const jssMatch = s.match(/jss?_?(\d)/);
   const sssMatch = !jssMatch ? s.match(/sss?_?(\d)/) : null;
   const primaryMatch = s.match(/primary_?(\d)/);
   const basicMatch = s.match(/basic_?(\d)/);
-
   if (jssMatch) return `JSS ${jssMatch[1]}`;
   if (sssMatch) return `SS ${sssMatch[1]}`;
   if (primaryMatch) return `Primary ${primaryMatch[1]}`;
   if (basicMatch) return `Basic ${basicMatch[1]}`;
-
-  // Fallback — clean underscores and title case
   return raw.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// Converts topic strings to Title Case.
-// "word processing concept" → "Word Processing Concept"
 function formatTopic(raw: string): string {
   if (!raw) return "Not specified";
-  // Small words that should stay lowercase (unless first word)
   const minorWords = new Set(["a","an","the","and","but","or","for","nor","on","at","to","by","in","of","up","as","is","it"]);
   return raw
     .toLowerCase()
@@ -183,8 +169,6 @@ function getAssignmentRule(level: EducationLevel): string {
 }
 
 // ─── TERMINOLOGY DEPTH ───────────────────────────────────────────────────────
-// Returns a one-line instruction on the expected language register for this subject.
-// List type selection is handled by CONTENT_RULES rule 3 — not here.
 function getTerminologyNote(subject: string): string {
   const s = normalizeSubject(subject);
   if (["biology","basic science","chemistry","physics","agricultural science","home economics"].includes(s))
@@ -207,7 +191,6 @@ function getTerminologyNote(subject: string): string {
 }
 
 // ─── HEADER BUILDER ───────────────────────────────────────────────────────────
-// Builds the lesson note header with REAL data from the database — no placeholders.
 function buildHeader(ctx: any, subject: string): string {
   const school   = ctx.schoolName              ?? "Not specified";
   const cls      = formatClass(ctx.class       ?? "");
@@ -216,8 +199,6 @@ function buildHeader(ctx: any, subject: string): string {
   const topic    = formatTopic(ctx.topic       ?? "");
   const teacher  = ctx.teacherName             ?? "Not specified";
   const ref      = getReference(subject, ctx.class ?? "");
-
-  // Build sub-topics block from database value
   const subTopicsBlock = buildSubTopicsBlock(ctx.subTopics, ctx.topic ?? "");
 
   return `LESSON NOTE
@@ -243,10 +224,6 @@ ${subTopicsBlock}
 }
 
 // ─── SUB-TOPICS EXTRACTOR ─────────────────────────────────────────────────────
-// Always converts whatever the DB sends into a clean list of sub-topic headings.
-// Works for arrays, proper comma lists, description strings, and everything between.
-// Returns null only when nothing was provided — AI then generates freely.
-
 const SUB_TOPIC_ACRONYMS = new Set([
   "cbn","ndic","sec","nafdac","inec","nass","wto","imf","vat","gdp","gnp",
   "cac","frsc","efcc","icpc","crs","irs","cbk","nnpc","firs","cbn",
@@ -258,10 +235,8 @@ const MINOR_WORDS_ST = new Set([
 
 function stTitleCase(s: string): string {
   return s.trim().split(" ").map((w, i) => {
-    // Strip surrounding punctuation to check the core word
     const core = w.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
     const wl = core.toLowerCase();
-    // Preserve known acronyms and any all-caps word (CBN, NDIC, SEC, GDP, etc.)
     if (core.length > 1 && (SUB_TOPIC_ACRONYMS.has(wl) || core === core.toUpperCase())) return w;
     if (i === 0 || !MINOR_WORDS_ST.has(wl)) return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     return w.toLowerCase();
@@ -284,17 +259,14 @@ function extractSubTopics(raw: any, topic: string): string[] | null {
     }
   } else if (typeof raw === "string" && raw.trim()) {
     const parts = raw.trim().split(/[,;\n]+/).map((s: string) => s.trim()).filter(Boolean);
-    for (const part of parts) {
-      // Split "X and Y" only when left side is short (≤3 words) — a heading keyword
+    for (let part of parts) {
+      // FIX: strip leading "and " after comma e.g. "linear equations, and substitution"
+      part = part.replace(/^and\s+/i, "").trim();
+      if (!part) continue;
       const andMatch = part.match(/^(.+?)\s+and\s+(.+)$/i);
       if (andMatch) {
         const left = andMatch[1].trim();
         const right = andMatch[2].trim();
-        // Only split when BOTH sides are exactly 1 word — pure keyword pairs
-        // e.g. "importance and problems" → both 1 word → split ✅
-        // e.g. "merits and demerits" → both 1 word → split ✅
-        // e.g. "light and dark reactions" → right=2 words → keep together ✅
-        // e.g. "causes and effects of inflation" → right=3 words → keep together ✅
         if (left.split(/\s+/).length === 1 && right.split(/\s+/).length === 1) {
           rawItems.push(left);
           rawItems.push(right);
@@ -309,7 +281,6 @@ function extractSubTopics(raw: any, topic: string): string[] | null {
 
   if (rawItems.length === 0) return null;
 
-  // Merge standalone acronyms into the previous item
   const merged: string[] = [];
   for (const item of rawItems) {
     if (merged.length > 0 && isStandaloneAcronym(item)) {
@@ -325,10 +296,8 @@ function extractSubTopics(raw: any, topic: string): string[] | null {
     }
   }
 
-  // Title-case every heading
   let headings = merged.map(stTitleCase);
 
-  // Deduplicate
   const seen = new Set<string>();
   headings = headings.filter(h => {
     const k = h.toLowerCase();
@@ -337,18 +306,15 @@ function extractSubTopics(raw: any, topic: string): string[] | null {
     return true;
   });
 
-  // Ensure intro-style heading is first
   const introKw = new Set(["introduction","meaning","definition","overview","background","concept"]);
   const hasIntro = headings.some(h => introKw.has(h.toLowerCase().split(" ")[0]));
   if (!hasIntro) headings.unshift(`Introduction to ${stTitleCase(topic)}`);
 
-  // Ensure Summary is last
   if (!headings.some(h => h.toLowerCase().includes("summary"))) headings.push("Summary");
 
   return headings;
 }
 
-// Builds the header SUB-TOPICS display block
 function buildSubTopicsBlock(raw: any, topic: string): string {
   const headings = extractSubTopics(raw, topic);
   if (headings) return headings.map((h, i) => `${i + 1}. ${h}`).join("\n");
@@ -356,7 +322,6 @@ function buildSubTopicsBlock(raw: any, topic: string): string {
 }
 
 // ─── UNIVERSAL CONTENT PATTERN ────────────────────────────────────────────────
-// Generic — works for every subject. The subject-type hint adapts it per discipline.
 const CONTENT_RULES = `
 CONTENT RULES — every sub-topic, every subject:
 
@@ -393,11 +358,8 @@ function buildSecondaryFreePrompt(ctx: any, headings: string[]): string {
   const terminologyNote = getTerminologyNote(subject);
   const header = buildHeader(ctx, subject);
 
-  // Section II: write headings as committed markdown — AI must fill content beneath each one.
-  // Bracket instructions are ignored by models; pre-written headings cannot be.
   const sectionII = headings.length > 0
-    ? headings.map((h, i) => `### ${i + 1}. ${h}`).join("\n\n[FILL]\n\n")
-      + "\n\n[FILL]"
+    ? headings.map((h, i) => `### ${i + 1}. ${h}`).join("\n\n[FILL]\n\n") + "\n\n[FILL]"
     : `### 1. [Generate appropriate sub-topics for "${ctx.topic}" in ${subject}. Write 5-6 sub-topics as ### numbered headings. End with Summary. Follow all CONTENT RULES.]`;
 
   return `You are a Nigerian secondary school teacher writing a formal lesson note for **${subject}**.
@@ -476,8 +438,7 @@ function buildSecondaryPremiumPrompt(ctx: any, headings: string[]): string {
   const header = buildHeader(ctx, subject);
 
   const sectionII = headings.length > 0
-    ? headings.map((h, i) => `### ${i + 1}. ${h}`).join("\n\n[FILL]\n\n")
-      + "\n\n[FILL]"
+    ? headings.map((h, i) => `### ${i + 1}. ${h}`).join("\n\n[FILL]\n\n") + "\n\n[FILL]"
     : `### 1. [Generate appropriate sub-topics for "${ctx.topic}" in ${subject}. Write 5-6 sub-topics as ### numbered headings. End with Summary. Follow all CONTENT RULES.]`;
 
   return `You are a senior Nigerian secondary school teacher writing a formal, inspection-ready lesson note for **${subject}**.
@@ -565,8 +526,7 @@ function buildPrimaryPrompt(ctx: any, headings: string[]): string {
   const header = buildHeader(ctx, subject);
 
   const sectionII = headings.length > 0
-    ? headings.map((h, i) => `### ${i + 1}. ${h}`).join("\n\n[FILL]\n\n")
-      + "\n\n[FILL]"
+    ? headings.map((h, i) => `### ${i + 1}. ${h}`).join("\n\n[FILL]\n\n") + "\n\n[FILL]"
     : `### 1. [Generate appropriate sub-topics for "${ctx.topic}" in ${subject}. Write 4-5 sub-topics as ### numbered headings in simple language. End with Summary. Follow all CONTENT RULES.]`;
 
   return `You are a Nigerian primary school teacher writing a formal lesson note for **${subject}**.
@@ -628,7 +588,11 @@ ${getAssignmentRule("primary")}
 ${getAllReferences(subject, classLevel)}`;
 }
 
-function buildCalculationPrompt(ctx: any): string {
+// FIX: now accepts headings and builds per-topic sections
+// ─── FIXED buildCalculationPrompt ────────────────────────────────────────────
+// Drop-in replacement for the existing function
+
+function buildCalculationPrompt(ctx: any, headings: string[] = []): string {
   const subject = ctx.subject;
   const classLevel = ctx.class ?? "";
   const level = getEducationLevel(classLevel);
@@ -639,21 +603,75 @@ function buildCalculationPrompt(ctx: any): string {
     ? "Write for JSS students aged 10-14. Simple language. Nigerian daily-life examples — sharing food, counting naira, measuring distances. Difficulty = JSS curriculum only."
     : "Write for SSS students aged 15-18 preparing for WAEC/JAMB. Precise mathematical language. Multi-step reasoning.";
 
-  const exampleCount = isMaths ? "minimum 4 worked examples" : "minimum 2 worked examples";
+  const exampleCount = isMaths ? "minimum 3 fully worked examples" : "minimum 2 fully worked examples";
   const styleNote = isMaths
     ? "Minimise prose. After the definition and formula, go straight to worked examples."
     : "Give the theory in 2-3 sentences, then prove it with worked calculations.";
 
-  return `You are a Nigerian secondary school ${subject} teacher and WAEC examiner.
+  // ── FIX 1: Filter correctly and preserve user-provided sub-topics ──────────
+  const topicHeadings = headings.filter(h => {
+    const hl = h.toLowerCase();
+    return !hl.includes("summary") && !hl.startsWith("introduction to ");
+  });
 
-DEPTH REQUIREMENTS:
-- Write a minimum of 4 fully worked examples for Mathematics; minimum 2 for Physics/Chemistry
-- Every worked example must show all steps in the aligned solution block — never skip or compress steps
-- If the topic has more than 4 natural example types (e.g. different formula applications), write them all
-- Practice Problems section must have exactly 3 problems (easy, medium, hard)
-- Evaluation must have 3 problems with answers shown; Assignment must have 3-4 questions
-- Each worked example must be detailed enough that a student can follow every step without a teacher
-- MINIMUM TOTAL LENGTH: 800 words. If the note is below 800 words, add more worked examples of increasing difficulty — never add prose padding
+  // ── FIX 2: Build a strict per-sub-topic template (not a loose instruction) ─
+  // Each sub-topic gets a rigid scaffold the AI must fill in, not a hint it can ignore.
+  const buildSubTopicBlock = (h: string, i: number): string => `### ${i + 1}. ${h}
+
+**Definition:** [One precise sentence defining ${h} with a Nigerian context example.]
+
+**Key Formula(s):**
+
+$$[primary formula for ${h}]$$
+
+**Where:**
+* $[var1]$ = [meaning with units]
+* $[var2]$ = [meaning with units]
+
+[Write ${exampleCount} for **${h}** using the worked example format below. Each example must specifically test a different aspect of ${h}. Do NOT write generic angle examples if this sub-topic is about something else.]`;
+
+  const sectionII = topicHeadings.length > 0
+    ? topicHeadings.map((h, i) => buildSubTopicBlock(h, i)).join("\n\n---\n\n")
+    : `### 1. Definition and Key Concepts
+
+**Definition:** [One-sentence definition with Nigerian context.]
+
+**Key Formula:**
+
+$$[main formula]$$
+
+**Where:**
+* $[variable]$ = [meaning with units]
+
+[Write ${exampleCount} using the worked example format below.]`;
+
+  // ── FIX 3: Explicit topic list the AI MUST cover in order ─────────────────
+  const topicsCoverBlock = topicHeadings.length > 0
+    ? `YOU MUST COVER THESE SUB-TOPICS IN EXACT ORDER — do not skip, rename, merge, or replace any:
+${topicHeadings.map((h, i) => `${i + 1}. ${h}`).join("\n")}
+
+Each sub-topic MUST have:
+- Its own ### heading with the EXACT name above
+- Its own definition sentence
+- Its own key formula(s) in LaTeX
+- ${exampleCount} that specifically test that sub-topic — not recycled generic examples
+- At least one Nigerian real-life context (architecture, land surveying, road design, etc.)
+
+`
+    : "";
+
+  const practiceProblemIdx = topicHeadings.length > 0 ? topicHeadings.length + 1 : 3;
+
+  return `You are a Nigerian secondary school ${subject} teacher and WAEC examiner writing a formal, inspection-ready lesson note.
+
+${topicsCoverBlock}DEPTH REQUIREMENTS:
+- Minimum ${isMaths ? "3" : "2"} fully worked examples per sub-topic — never fewer
+- Every worked example must show ALL steps in the aligned solution block — never skip or compress steps
+- Each sub-topic must have examples distinct from other sub-topics — no recycled problems
+- Practice Problems: exactly 3 (easy → medium → hard, spanning all sub-topics)
+- Evaluation: exactly 3 problems with answers shown
+- Assignment: 3-4 questions mixing WAEC and JAMB styles
+- MINIMUM TOTAL LENGTH: 1000 words. If below, add more worked examples — never add prose padding
 
 ${depthNote}
 ${styleNote}
@@ -662,31 +680,37 @@ Your output is rendered by ReactMarkdown + KaTeX. Use proper Markdown headings a
 
 LaTeX rules:
 * All expressions: $inline$ or $$display$$ — never plain text
-* Multiplication: $a \\times b$ — never * or x
+* Multiplication: $a \\times b$ — never * or ×
 * Fractions: $\\frac{a}{b}$ — never a/b
 * Angles: $\\angle ABC = 90^\\circ$
+* Degrees: $90^\\circ$ — never 90°
 
-Worked example format — use for EVERY example:
+Worked example format — use for EVERY example without exception:
 
-### Example [n]: [Short description]
+### Example [n]: [Short description specific to this sub-topic]
 
-* **Given:** [data with units]
+* **Given:** [specific data with units]
 * **Required:** [what to find]
 * **Formula:** $$[formula]$$
 
 **Solution:**
 
 $$\\begin{aligned}
-[step] &= [result] \\\\
-[step] &= [result] \\\\
-[step] &= [final answer]
+[step 1] &= [result 1] \\\\
+[step 2] &= [result 2] \\\\
+[final] &= [answer with units]
 \\end{aligned}$$
 
 **Answer:** $\\boxed{[final answer with units]}$
 
+CRITICAL LaTeX rules — violations break the renderer:
+- Every solution MUST use $$\\begin{aligned} ... \\end{aligned}$$
+- Every line break inside aligned MUST use \\\\ (four backslashes in source)
+- Never write bare math outside $...$ or $$...$$
+
 ---
 
-Write the complete lesson note. The header below is filled with real data — copy it exactly.
+Write the complete lesson note. Copy the header below EXACTLY as written.
 
 ${header}
 
@@ -696,47 +720,35 @@ ${header}
 
 By the end of this lesson, students should be able to:
 
-1. State the definition and key formula for this topic.
-2. Identify and apply the correct formula to solve problems.
-3. Solve step-by-step problems involving this topic.
-4. Apply this concept to real-life situations in Nigeria.
+1. [Bloom's verb + outcome tied to sub-topic 1]
+2. [Bloom's verb + outcome tied to sub-topic 2]
+3. [Bloom's verb + outcome tied to sub-topic 3]
+4. [Bloom's verb + outcome — apply to Nigerian real-life context]
+5. [Bloom's verb + outcome — WAEC/JAMB exam skill]
 
 ---
 
 ## II. CONTENT
 
-### 1. Definition and Key Concepts
+${sectionII}
 
-[One-sentence definition. One sentence of Nigerian context.]
+---
 
-**Key Formula:**
+### ${practiceProblemIdx}. Practice Problems
 
-$$[main formula]$$
+**Attempt the following (one from each sub-topic):**
 
-**Where:**
-
-* $[variable]$ = [meaning with units]
-* $[variable]$ = [meaning with units]
-
-### 2. Worked Examples
-
-[Write ${exampleCount}, increasing in difficulty. Use the worked example format above for every single one.]
-
-### 3. Practice Problems
-
-**Attempt the following:**
-
-1. [easy problem]
-2. [medium problem]
-3. [hard problem]
+1. [Easy — sub-topic 1]
+2. [Medium — sub-topic 2]
+3. [Hard — combines two or more sub-topics]
 
 ---
 
 ## III. EVALUATION (CLASS WORK)
 
-1. [problem] *(Answer: ...)*
-2. [problem] *(Answer: ...)*
-3. [problem] *(Answer: ...)*
+1. [problem] *(Answer: $\\boxed{...}$)*
+2. [problem] *(Answer: $\\boxed{...}$)*
+3. [problem] *(Answer: $\\boxed{...}$)*
 
 ---
 
@@ -752,14 +764,13 @@ ${getAllReferences(subject, classLevel)}`;
 }
 
 // ─── PROMPT SELECTOR ─────────────────────────────────────────────────────────
-// Now receives full context so each builder can inject real data into the header.
 function getSystemPrompt(ctx: any, isPremium: boolean, headings: string[]): string {
   const subject = ctx.subject ?? "";
   const classLevel = ctx.class ?? "";
   const level = getEducationLevel(classLevel);
 
   if (level === "primary") return buildPrimaryPrompt(ctx, headings);
-  if (isCalculationSubject(subject, classLevel)) return buildCalculationPrompt(ctx);
+  if (isCalculationSubject(subject, classLevel)) return buildCalculationPrompt(ctx, headings);
   return isPremium ? buildSecondaryPremiumPrompt(ctx, headings) : buildSecondaryFreePrompt(ctx, headings);
 }
 
@@ -787,12 +798,7 @@ export async function generateLessonNote(context: any, isPremium: boolean) {
   const validation = await validateSubjectTopic(context);
   if (!validation.valid) return { text: validation.message, provider: "validator" };
 
-  // Extract concrete sub-topic headings FIRST — passed to system prompt builder
   const resolvedHeadings = extractSubTopics(context.subTopics, context.topic ?? "");
-
-  // Build system prompt — two distinct paths:
-  // 1. Headings resolved from DB → pass them locked into Section II template
-  // 2. No headings at all → pass empty array; each builder handles this with a free-generation Section II
   const headingsForPrompt = resolvedHeadings ?? [];
   const systemPrompt = getSystemPrompt(context, isPremium, headingsForPrompt);
 
@@ -851,7 +857,6 @@ HOW TO APPLY CHANGES — works for any subject:
 
 CONTENT QUALITY RULES — apply to every subject:
 - Every list item must have a FULL explanation a student can understand on its own — never just a word or label
-  - Wrong for ANY subject: a list item that is just a word or label with nothing explaining it
   - Right (Sciences): "* **[Concept]** — [what it is, how it works, what it produces — one complete sentence]."
   - Right (Commerce/Economics): "* **[Concept]** — [definition, what it regulates or affects, real example — one complete sentence]."
   - Right (Government/Civic): "* **[Concept]** — [definition, role or function, Nigerian institutional example — one complete sentence]."
