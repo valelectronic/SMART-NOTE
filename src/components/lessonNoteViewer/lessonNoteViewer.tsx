@@ -11,11 +11,7 @@ mermaid.initialize({
   theme: 'neutral',
   securityLevel: 'loose',
   fontFamily: 'system-ui, sans-serif',
-  flowchart: {
-    useMaxWidth: true,
-    htmlLabels: false,
-    curve: 'linear',
-  },
+  flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'linear' },
 });
 
 interface LessonNoteViewerProps {
@@ -23,6 +19,72 @@ interface LessonNoteViewerProps {
   title: string;
   subject?: string;
   className?: string;
+}
+
+// ─── LATEX PREPROCESSOR ──────────────────────────────────────────────────────
+// Gently fixes two edge cases in AI-generated LaTeX without touching valid content:
+//
+// Fix 1: Missing $$\begin{aligned} opener — AI occasionally drops the opening
+//   delimiter. Detected by finding a **Solution:** block whose first math line
+//   contains &= but has no $$ opener immediately above it.
+//
+// Fix 2: Doubled inline math on Given/Required/Formula bullet lines —
+//   AI writes both plain text AND $...$ e.g. "2x+3x2x+3x". Strip the duplicate.
+//
+// Safe for ALL subjects — both fixes are gated on patterns that only appear
+// in calculation subjects (Maths, Physics, Chemistry, Accounting).
+
+function preprocessLatex(text: string): string {
+  const lines = text.split('\n');
+  const out: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Fix 1: detect a **Solution:** line, then check what follows
+    if (line.trim() === '**Solution:**') {
+      out.push(line);
+      // Skip blank lines after **Solution:**
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === '') {
+        out.push(lines[j]);
+        j++;
+      }
+      // Check if the next non-empty line is a raw aligned math line (has &=)
+      // but NOT already inside a $$ block
+      if (j < lines.length) {
+        const nextLine = lines[j];
+        const hasAligned = nextLine.includes('&=') || nextLine.includes('&\\');
+        const hasOpener = nextLine.includes('$$') || nextLine.includes('\\begin{aligned}');
+        if (hasAligned && !hasOpener) {
+          // Insert the missing opening delimiter
+          out.push('$$');
+          out.push('\\begin{aligned}');
+        }
+      }
+      i = j - 1; // let the loop continue from j
+      continue;
+    }
+
+    // Fix 2: Doubled inline math on bullet label lines
+    // Pattern: "* **Given:** plaintext$math$" → "* **Given:** $math$"
+    const bulletMatch = line.match(
+      /^(\*\s+\*\*(?:Given|Required|Formula|Answer):\*\*\s*)([^$\n]{2,40})(\$.+)$/
+    );
+    if (bulletMatch) {
+      const [, prefix, plainPart, mathPart] = bulletMatch;
+      const plain = plainPart.replace(/\s/g, '').substring(0, 5);
+      const math  = mathPart.replace(/[$\s\\{}]/g, '').substring(0, 5);
+      if (plain.length > 1 && math.length > 1 && math.startsWith(plain.substring(0, 3))) {
+        out.push(prefix + mathPart);
+        continue;
+      }
+    }
+
+    out.push(line);
+  }
+
+  return out.join('\n');
 }
 
 export const LessonNoteViewer = ({
@@ -52,19 +114,20 @@ export const LessonNoteViewer = ({
   }, [content]);
 
   const processContent = (rawText: string) => {
+    const fixed = preprocessLatex(rawText);
     const regex = /```mermaid([\s\S]*?)```/g;
     const parts: Array<{ type: 'markdown' | 'mermaid'; value: string }> = [];
     let lastIndex = 0;
     let match;
-    while ((match = regex.exec(rawText)) !== null) {
+    while ((match = regex.exec(fixed)) !== null) {
       if (match.index > lastIndex) {
-        parts.push({ type: 'markdown', value: rawText.substring(lastIndex, match.index) });
+        parts.push({ type: 'markdown', value: fixed.substring(lastIndex, match.index) });
       }
       parts.push({ type: 'mermaid', value: match[1].trim() });
       lastIndex = regex.lastIndex;
     }
-    if (lastIndex < rawText.length) {
-      parts.push({ type: 'markdown', value: rawText.substring(lastIndex) });
+    if (lastIndex < fixed.length) {
+      parts.push({ type: 'markdown', value: fixed.substring(lastIndex) });
     }
     return parts;
   };
@@ -74,17 +137,14 @@ export const LessonNoteViewer = ({
   return (
     <div
       className={[
-        // Mobile: zero side padding so content fills the screen like ChatGPT/Claude
-        // Desktop: comfortable padding inside the card
         'bg-white dark:bg-card',
         'w-full',
-        'px-0 sm:px-8',          // no side padding on mobile, normal on desktop
+        'px-0 sm:px-8',
         'py-4 sm:py-8',
         'print:shadow-none print:p-0 print:border-0',
         className,
       ].join(' ')}
     >
-      {/* Header — small horizontal padding on mobile so it doesn't touch edges */}
       <header className="border-b-2 border-primary pb-3 mb-5 px-4 sm:px-0">
         <h1 className="text-base sm:text-2xl font-bold text-foreground uppercase leading-tight">
           {title}
@@ -99,7 +159,6 @@ export const LessonNoteViewer = ({
         </p>
       </header>
 
-      {/* Content */}
       <div className="space-y-3 sm:space-y-6 text-foreground leading-relaxed">
         {sections.map((section, idx) =>
           section.type === 'mermaid' ? (
@@ -172,7 +231,6 @@ export const LessonNoteViewer = ({
         )}
       </div>
 
-      {/* Footer */}
       <footer className="
         mt-8 sm:mt-12
         pt-4 sm:pt-6

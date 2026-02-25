@@ -588,10 +588,6 @@ ${getAssignmentRule("primary")}
 ${getAllReferences(subject, classLevel)}`;
 }
 
-// FIX: now accepts headings and builds per-topic sections
-// ─── FIXED buildCalculationPrompt ────────────────────────────────────────────
-// Drop-in replacement for the existing function
-
 function buildCalculationPrompt(ctx: any, headings: string[] = []): string {
   const subject = ctx.subject;
   const classLevel = ctx.class ?? "";
@@ -600,117 +596,65 @@ function buildCalculationPrompt(ctx: any, headings: string[] = []): string {
   const header = buildHeader(ctx, subject);
 
   const depthNote = level === "junior"
-    ? "Write for JSS students aged 10-14. Simple language. Nigerian daily-life examples — sharing food, counting naira, measuring distances. Difficulty = JSS curriculum only."
+    ? "Write for JSS students aged 10-14. Simple language. Nigerian daily-life examples — sharing food, counting naira, measuring distances."
     : "Write for SSS students aged 15-18 preparing for WAEC/JAMB. Precise mathematical language. Multi-step reasoning.";
 
-  const exampleCount = isMaths ? "minimum 3 fully worked examples" : "minimum 2 fully worked examples";
-  const styleNote = isMaths
-    ? "Minimise prose. After the definition and formula, go straight to worked examples."
-    : "Give the theory in 2-3 sentences, then prove it with worked calculations.";
-
-  // ── FIX 1: Filter correctly and preserve user-provided sub-topics ──────────
   const topicHeadings = headings.filter(h => {
     const hl = h.toLowerCase();
     return !hl.includes("summary") && !hl.startsWith("introduction to ");
   });
 
-  // ── FIX 2: Build a strict per-sub-topic template (not a loose instruction) ─
-  // Each sub-topic gets a rigid scaffold the AI must fill in, not a hint it can ignore.
-  const buildSubTopicBlock = (h: string, i: number): string => `### ${i + 1}. ${h}
-
-**Definition:** [One precise sentence defining ${h} with a Nigerian context example.]
-
-**Key Formula(s):**
-
-$$[primary formula for ${h}]$$
-
-**Where:**
-* $[var1]$ = [meaning with units]
-* $[var2]$ = [meaning with units]
-
-[Write ${exampleCount} for **${h}** using the worked example format below. Each example must specifically test a different aspect of ${h}. Do NOT write generic angle examples if this sub-topic is about something else.]`;
+  const exampleInstruction = isMaths ? "3-4 Worked Examples following the GOLD STANDARD below" : "2-3 Worked Examples following the GOLD STANDARD below";
 
   const sectionII = topicHeadings.length > 0
-    ? topicHeadings.map((h, i) => buildSubTopicBlock(h, i)).join("\n\n---\n\n")
-    : `### 1. Definition and Key Concepts
+    ? topicHeadings.map((h, i) => `### ${i + 1}. ${h}\n\n[Definition of ${h} in one sentence with Nigerian context. State the key formula in LaTeX.]\n\n[${exampleInstruction}]`).join("\n\n---\n\n")
+    : `[Generate 5-6 sub-topics for this topic. For each: one-sentence definition, key formula, and 3-4 worked examples following the GOLD STANDARD below]`;
 
-**Definition:** [One-sentence definition with Nigerian context.]
-
-**Key Formula:**
-
-$$[main formula]$$
-
-**Where:**
-* $[variable]$ = [meaning with units]
-
-[Write ${exampleCount} using the worked example format below.]`;
-
-  // ── FIX 3: Explicit topic list the AI MUST cover in order ─────────────────
-  const topicsCoverBlock = topicHeadings.length > 0
-    ? `YOU MUST COVER THESE SUB-TOPICS IN EXACT ORDER — do not skip, rename, merge, or replace any:
-${topicHeadings.map((h, i) => `${i + 1}. ${h}`).join("\n")}
-
-Each sub-topic MUST have:
-- Its own ### heading with the EXACT name above
-- Its own definition sentence
-- Its own key formula(s) in LaTeX
-- ${exampleCount} that specifically test that sub-topic — not recycled generic examples
-- At least one Nigerian real-life context (architecture, land surveying, road design, etc.)
-
-`
+  const topicsList = topicHeadings.length > 0
+    ? `TOPICS TO COVER IN ORDER:\n${topicHeadings.map((h, i) => `${i + 1}. ${h}`).join("\n")}\nDo not skip, rename, or merge any topic.\n\n`
     : "";
 
-  const practiceProblemIdx = topicHeadings.length > 0 ? topicHeadings.length + 1 : 3;
+  return `You are a Nigerian Senior Secondary School ${subject} teacher and WAEC examiner.
 
-  return `You are a Nigerian secondary school ${subject} teacher and WAEC examiner writing a formal, inspection-ready lesson note.
+${topicsList}${depthNote}
 
-${topicsCoverBlock}DEPTH REQUIREMENTS:
-- Minimum ${isMaths ? "3" : "2"} fully worked examples per sub-topic — never fewer
-- Every worked example must show ALL steps in the aligned solution block — never skip or compress steps
-- Each sub-topic must have examples distinct from other sub-topics — no recycled problems
-- Practice Problems: exactly 3 (easy → medium → hard, spanning all sub-topics)
-- Evaluation: exactly 3 problems with answers shown
-- Assignment: 3-4 questions mixing WAEC and JAMB styles
-- MINIMUM TOTAL LENGTH: 1000 words. If below, add more worked examples — never add prose padding
-
-${depthNote}
-${styleNote}
-
-Your output is rendered by ReactMarkdown + KaTeX. Use proper Markdown headings and LaTeX for all mathematics.
-
-LaTeX rules:
-* All expressions: $inline$ or $$display$$ — never plain text
-* Multiplication: $a \\times b$ — never * or ×
-* Fractions: $\\frac{a}{b}$ — never a/b
-* Angles: $\\angle ABC = 90^\\circ$
-* Degrees: $90^\\circ$ — never 90°
-
-Worked example format — use for EVERY example without exception:
-
-### Example [n]: [Short description specific to this sub-topic]
-
-* **Given:** [specific data with units]
-* **Required:** [what to find]
-* **Formula:** $$[formula]$$
-
-**Solution:**
-
-$$\\begin{aligned}
-[step 1] &= [result 1] \\\\
-[step 2] &= [result 2] \\\\
-[final] &= [answer with units]
-\\end{aligned}$$
-
-**Answer:** $\\boxed{[final answer with units]}$
-
-CRITICAL LaTeX rules — violations break the renderer:
-- Every solution MUST use $$\\begin{aligned} ... \\end{aligned}$$
-- Every line break inside aligned MUST use \\\\ (four backslashes in source)
-- Never write bare math outside $...$ or $$...$$
+MINIMUM LENGTH: 800 words. Add more worked examples if below — never add prose padding.
 
 ---
 
-Write the complete lesson note. Copy the header below EXACTLY as written.
+## THE GOLD STANDARD FOR WORKED EXAMPLES
+For every single example, follow this exact structure. Deviating from it breaks the student's view.
+
+### Example [n]: [Short descriptive title]
+
+* **Given:** $[values with units]$
+* **Required:** $[what to find]$
+* **Formula:** $[formula]$
+
+**Solution:**
+$$
+\\begin{aligned}
+[expression 1] &= [result 1] \\\\
+[expression 2] &= [result 2] \\\\
+[final expression] &= [final answer with units]
+\\end{aligned}
+$$
+
+**Answer:** $\\boxed{[final answer with units]}$
+
+---
+
+## CRITICAL FORMATTING RULES
+1. **Single Block Rule** — use exactly ONE pair of $$ per solution block. Never open $$\\begin{aligned} more than once per example.
+2. **Line breaks** — inside the aligned block, end every line with \\\\ (two backslashes). Never more, never fewer.
+3. **Inline math** — wrap ALL variables, values, and expressions in $...$. Never write bare maths outside dollar signs.
+4. **Multiplication** — always $a \\times b$. Never use * or the letter x.
+5. **Fractions** — always $\\frac{a}{b}$. Never write a/b in plain text.
+6. **Given/Required/Formula** — always $[value]$, never plain text.
+
+---
+
+Write the complete lesson note below. Copy the header EXACTLY as written.
 
 ${header}
 
@@ -720,27 +664,17 @@ ${header}
 
 By the end of this lesson, students should be able to:
 
-1. [Bloom's verb + outcome tied to sub-topic 1]
-2. [Bloom's verb + outcome tied to sub-topic 2]
-3. [Bloom's verb + outcome tied to sub-topic 3]
-4. [Bloom's verb + outcome — apply to Nigerian real-life context]
-5. [Bloom's verb + outcome — WAEC/JAMB exam skill]
+1. [Bloom's verb + outcome for sub-topic 1]
+2. [Bloom's verb + outcome for sub-topic 2]
+3. [Bloom's verb + outcome for sub-topic 3]
+4. Apply this concept to real-life situations in Nigeria.
+5. Solve WAEC and JAMB examination questions on this topic.
 
 ---
 
 ## II. CONTENT
 
 ${sectionII}
-
----
-
-### ${practiceProblemIdx}. Practice Problems
-
-**Attempt the following (one from each sub-topic):**
-
-1. [Easy — sub-topic 1]
-2. [Medium — sub-topic 2]
-3. [Hard — combines two or more sub-topics]
 
 ---
 
