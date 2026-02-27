@@ -22,7 +22,7 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
     const handler = (window as any).PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       email: userEmail,
-      amount: 250000,
+      amount: 300000,
       currency: "NGN",
       metadata: { userId },
       callback: () => {
@@ -166,7 +166,7 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
             {/* Price card */}
             <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/60 dark:border-amber-800/30 px-4 py-3.5 flex items-center justify-between">
               <div>
-                <p className="text-xl font-bold text-foreground">₦2,500</p>
+                <p className="text-xl font-bold text-foreground">₦3,000</p>
                 <p className="text-xs text-muted-foreground">per term · one-time</p>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -186,7 +186,7 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
                 className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm sm:text-base"
               >
                 <Zap size={16} className="fill-white" />
-                Pay ₦2,500 Now
+                Pay ₦3,000 Now
               </button>
               <button
                 onClick={onClose}
