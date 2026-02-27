@@ -145,7 +145,7 @@ export function LessonNoteSidebar({ weeks, selectedTopic, onSelectTopic, current
             <FileText size={20} className="text-primary flex-shrink-0" />
             <div>
               <p className="text-xs font-bold text-foreground">Quick Tip</p>
-              <p className="text-xs text-muted-foreground">Free: 2 edits. Premium: 5 edits + regenerate.</p>
+              <p className="text-xs text-muted-foreground">Free: 2 edits. Premium: 3 edits + regenerate.</p>
             </div>
           </div>
         </div>

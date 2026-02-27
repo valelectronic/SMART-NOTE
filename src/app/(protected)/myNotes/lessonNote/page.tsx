@@ -67,6 +67,8 @@ export default function LessonNotePage() {
   const [lockedFeature, setLockedFeature] = useState<string | null>(null);
   const [editLimitReached, setEditLimitReached] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
 
   const printRef = useRef<HTMLDivElement | null>(null);
 
@@ -83,6 +85,10 @@ export default function LessonNotePage() {
           const premiumRes = await fetch("/api/user/premium-status");
           if (premiumRes.ok) {
             const premiumData = await premiumRes.json();
+
+            setUserEmail(premiumData.userEmail || "");
+            setUserId(premiumData.userId || "");
+
             isPremiumStatus =
               premiumData.isPremium ||
               ["premium", "school"].includes(
@@ -521,6 +527,8 @@ export default function LessonNotePage() {
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         feature={lockedFeature}
+        userEmail={userEmail}
+        userId={userId}
       />
     </div>
   );

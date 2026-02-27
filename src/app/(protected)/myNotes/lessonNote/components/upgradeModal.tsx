@@ -1,193 +1,204 @@
 "use client";
 
-import { X, Crown, FileText, Printer, Download, RefreshCw, Sparkles, Zap } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { X, Crown, FileText, Printer, Download, RefreshCw, Zap, Check } from "lucide-react";
+import Script from "next/script";
+import { toast } from "sonner";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   feature: string | null;
+  userEmail: string;
+  userId: string;
 }
 
-export function UpgradeModal({ isOpen, onClose, feature }: Props) {
-  const router = useRouter();
+export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Props) {
+
+  const handlePayment = () => {
+    if (!(window as any).PaystackPop) {
+      toast.error("Payment system is loading, please try again.");
+      return;
+    }
+    const handler = (window as any).PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+      email: userEmail,
+      amount: 250000,
+      currency: "NGN",
+      metadata: { userId },
+      callback: () => {
+        toast.success("Payment successful! Upgrading your account...");
+        onClose();
+        setTimeout(() => window.location.reload(), 2000);
+      },
+      onClose: () => toast.info("Payment cancelled"),
+    });
+    handler.openIframe();
+  };
 
   if (!isOpen) return null;
 
-  const featureMessages: Record<string, { title: string; description: string }> = {
+  const featureMessages: Record<string, { title: string; description: string; icon: React.ReactNode }> = {
     print: {
       title: "Print Feature Locked",
-      description: "Print your lesson notes in professional format for classroom use."
+      description: "Print your lesson notes in professional format for classroom use.",
+      icon: <Printer size={15} />,
     },
     download: {
       title: "PDF Export Locked",
-      description: "Download high-quality PDF copies for offline access and sharing."
+      description: "Download high-quality PDF copies for offline access and sharing.",
+      icon: <Download size={15} />,
     },
     regenerate: {
-      title: "Regeneration is Premium Only",
-      description: "Generate multiple versions of the same topic for variety and comparison."
+      title: "Regeneration is Premium",
+      description: "Generate multiple versions of the same topic for variety and comparison.",
+      icon: <RefreshCw size={15} />,
     },
     generation: {
       title: "Note Limit Reached",
-      description: "You've reached your 5 free notes. Upgrade for full term generations."
+      description: "You've used your 5 free notes. Upgrade for full term generations.",
+      icon: <FileText size={15} />,
     },
     refinement: {
       title: "Refinement Limit Reached",
-      description: "You've used all 2 free edits. Upgrade for 5 edits per note."
+      description: "You've used all 2 free edits. Upgrade for unlimited refinements.",
+      icon: <Zap size={15} />,
     },
   };
 
-  const currentFeature = feature ? featureMessages[feature] : null;
+  const current = feature ? featureMessages[feature] : null;
+
+  const perks = [
+    { icon: <FileText size={14} />, label: "Note Generations", free: "5 notes", premium: "15 notes / term" },
+    { icon: <RefreshCw size={14} />, label: "Regenerations", free: "None", premium: "1 per note" },
+    { icon: <Zap size={14} />, label: "Refinements", free: "2 per note", premium: "3 per note" },
+    { icon: <Printer size={14} />, label: "Print & PDF Export", free: "Locked", premium: "Unlimited" },
+  ];
 
   return (
-    <div 
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-card rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 w-full max-w-md shadow-2xl border border-border animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-4 duration-300 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+    <>
+      <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
+
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
       >
-        
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4 sm:mb-6">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-1.5 sm:p-2 rounded-lg sm:rounded-xl">
-              <Crown size={20} className="text-white sm:w-6 sm:h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-foreground">
-                {currentFeature?.title || "Unlock Premium"}
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Get full access to all features
-              </p>
-            </div>
+        {/* Sheet */}
+        <div
+          className="relative w-full max-w-sm sm:max-w-md bg-card border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+
+          {/* Decorative top bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
+
+          {/* Drag pill (mobile) */}
+          <div className="flex justify-center pt-2.5 pb-0 sm:hidden">
+            <div className="w-10 h-1 rounded-full bg-border" />
           </div>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors p-1 -mt-1 -mr-1"
-          >
-            <X size={20} />
-          </button>
+
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 px-5 pt-4 pb-6 sm:px-7 sm:pt-6 sm:pb-8 space-y-5">
+
+            {/* Close */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Icon + Title */}
+            <div className="flex items-center gap-3">
+              <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
+                <Crown size={20} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-foreground leading-tight">
+                  {current?.title ?? "Unlock Premium"}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Full term access · Instant activation
+                </p>
+              </div>
+            </div>
+
+            {/* Feature callout */}
+            {current && (
+              <div className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl px-3.5 py-3">
+                <span className="mt-0.5 text-amber-600 dark:text-amber-400 shrink-0">
+                  {current.icon}
+                </span>
+                <p className="text-xs sm:text-sm text-foreground/80 leading-snug">
+                  {current.description}
+                </p>
+              </div>
+            )}
+
+            {/* Comparison table */}
+            <div className="rounded-2xl border border-border overflow-hidden text-xs sm:text-sm">
+              {/* Header row */}
+              <div className="grid grid-cols-3 bg-muted/60 px-3 py-2 font-semibold text-muted-foreground text-[11px] uppercase tracking-wide">
+                <span>Feature</span>
+                <span className="text-center">Free</span>
+                <span className="text-center text-amber-600 dark:text-amber-400">Premium</span>
+              </div>
+              {/* Rows */}
+              {perks.map((p, i) => (
+                <div
+                  key={i}
+                  className={`grid grid-cols-3 items-center px-3 py-2.5 gap-1 ${
+                    i % 2 === 0 ? "bg-card" : "bg-muted/20"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 text-foreground/80 font-medium">
+                    <span className="text-primary shrink-0">{p.icon}</span>
+                    <span className="leading-tight">{p.label}</span>
+                  </div>
+                  <span className="text-center text-muted-foreground">{p.free}</span>
+                  <span className="text-center font-semibold text-amber-600 dark:text-amber-400">
+                    {p.premium}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Price card */}
+            <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/60 dark:border-amber-800/30 px-4 py-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-xl font-bold text-foreground">₦2,500</p>
+                <p className="text-xs text-muted-foreground">per term · one-time</p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+                  Best Value
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Check size={11} className="text-green-500" /> Secure · Paystack
+                </span>
+              </div>
+            </div>
+
+            {/* CTA buttons */}
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={handlePayment}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm sm:text-base"
+              >
+                <Zap size={16} className="fill-white" />
+                Pay ₦2,500 Now
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full border border-border hover:bg-muted active:scale-95 rounded-2xl py-3 font-medium text-muted-foreground transition-all text-sm"
+              >
+                Maybe Later
+              </button>
+            </div>
+
+          </div>
         </div>
-
-        {/* Feature-specific message */}
-        {currentFeature && (
-          <div className="bg-primary/10 border border-primary/20 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
-            <p className="text-xs sm:text-sm text-foreground">
-              {currentFeature.description}
-            </p>
-          </div>
-        )}
-
-        {/* Benefits comparison */}
-        <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
-          <p className="text-xs sm:text-sm font-bold text-foreground mb-2 sm:mb-3">Premium vs Free:</p>
-          
-          {/* Generation limit */}
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className="bg-primary/10 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
-              <FileText size={14} className="text-primary sm:w-4 sm:h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-foreground">Note Generations</p>
-              <p className="text-xs text-muted-foreground">Free: 5 notes • Premium: 17</p>
-            </div>
-          </div>
-
-          {/* Refinement limit */}
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className="bg-primary/10 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
-              <Zap size={14} className="text-primary sm:w-4 sm:h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-foreground">Refinements per Note</p>
-              <p className="text-xs text-muted-foreground">Free: 2 edits • Premium: 5 edits</p>
-            </div>
-          </div>
-
-          {/* Regeneration */}
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className="bg-primary/10 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
-              <RefreshCw size={14} className="text-primary sm:w-4 sm:h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-foreground">Regenerate Notes</p>
-              <p className="text-xs text-muted-foreground">Free: ❌ • Premium: ✓ (1x per note)</p>
-            </div>
-          </div>
-
-          {/* PDF Export */}
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className="bg-primary/10 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
-              <Download size={14} className="text-primary sm:w-4 sm:h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-foreground">PDF Export</p>
-              <p className="text-xs text-muted-foreground">Free: ❌ • Premium: ✓ Unlimited</p>
-            </div>
-          </div>
-
-          {/* Print */}
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className="bg-primary/10 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
-              <Printer size={14} className="text-primary sm:w-4 sm:h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-foreground">Print Notes</p>
-              <p className="text-xs text-muted-foreground">Free: ❌ • Premium: ✓ Unlimited</p>
-            </div>
-          </div>
-
-          {/* AI Model */}
-          <div className="flex items-start gap-2 sm:gap-3">
-            <div className="bg-primary/10 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
-              <Sparkles size={14} className="text-primary sm:w-4 sm:h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs sm:text-sm font-medium text-foreground">Smart Model Quality</p>
-              <p className="text-xs text-muted-foreground">Free: Basic • Premium: Advanced</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Pricing */}
-        <div className="bg-muted/50 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-base sm:text-lg font-bold text-foreground">₦3000/term</p>
-              <p className="text-xs text-muted-foreground">Cancel anytime</p>
-            </div>
-            <div className="bg-primary/10 px-2 sm:px-3 py-1 rounded-full">
-              <p className="text-xs font-bold text-primary">Save 40%</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex flex-col gap-2 sm:gap-3">
-          <button
-            className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl py-3 sm:py-3.5 px-4 sm:px-6 font-bold flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl active:scale-95 text-sm sm:text-base"
-            onClick={() => router.push("/pricing")}
-          >
-            <Crown size={16} className="sm:w-5 sm:h-5" />
-            Upgrade Now
-          </button>
-
-          <button
-            className="w-full border-2 border-border hover:bg-muted rounded-xl py-3 sm:py-3.5 px-4 sm:px-6 font-bold text-foreground transition-all active:scale-95 text-sm sm:text-base"
-            onClick={onClose}
-          >
-            Maybe Later
-          </button>
-        </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground mt-3 sm:mt-4">
-          Join 500+ Nigerian teachers using Premium
-        </p>
       </div>
-    </div>
+    </>
   );
 }

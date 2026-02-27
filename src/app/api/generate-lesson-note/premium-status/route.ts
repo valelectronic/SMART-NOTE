@@ -41,7 +41,9 @@ export async function GET() {
       approvalStatus: teacherProfile.approvalStatus,
       premiumTrialUsed: teacherProfile.premiumTrialUsed || false,
       // Useful for showing "Your subscription expires in X days"
-      expiresAt: teacherProfile.subscriptionExpiresAt 
+      expiresAt: teacherProfile.subscriptionExpiresAt,
+      userId: session.user.id, 
+  userEmail: session.user.email
     }, { status: 200 });
 
   } catch (error) {

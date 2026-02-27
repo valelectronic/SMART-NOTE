@@ -115,14 +115,14 @@ export async function POST(req: Request) {
       );
 
     const notesUsed = usageResult?.value || 0;
-    const NOTE_LIMIT = isPaidSubscriber || isAdminApproved ? 17: 5;
+    const NOTE_LIMIT = isPaidSubscriber || isAdminApproved ? 15: 5;
 
     // ONLY NEW NOTES CONSUME QUOTA
     if (isNewNote && notesUsed >= NOTE_LIMIT) {
       return NextResponse.json(
         {
       error: isPaidSubscriber 
-        ? "You have used your 17 premium notes. Please upgrade again." 
+        ? "You have used your 15 premium notes. Please upgrade again." 
         : "Free limit of 5 notes reached. Upgrade to Premium!",
       code: "LIMIT_REACHED",
     },
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
 
     // EDIT LIMIT
     // Premium gets 15 refinements; free/trial users get 3
-    const EDIT_LIMIT = isPremiumActive ? 5 : 2;
+    const EDIT_LIMIT = isPremiumActive ? 3 : 2;
 
     if (isRefinement && existingNote && existingNote.editCount >= EDIT_LIMIT) {
       return NextResponse.json(
@@ -221,7 +221,7 @@ export async function POST(req: Request) {
               if ((atomicCount?.value || 0) >= NOTE_LIMIT)
                 throw new Error("QUOTA_EXHAUSTED");
 
-                if (isPaidSubscriber && totalUsedAfterThis >= 17) {
+                if (isPaidSubscriber && totalUsedAfterThis >= 15) {
         await tx
           .update(onboarding)
           .set({ subscriptionTier: "free" })

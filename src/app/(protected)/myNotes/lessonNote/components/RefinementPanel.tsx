@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function RefinementPanel({ generatedNote, instruction, setInstruction, loading, isPremium, onRefine }: Props) {
-  const editLimit = isPremium ? 5 : 2;
+  const editLimit = isPremium ? 3 : 2;
   const isEditLimitReached = generatedNote.editCount >= editLimit;
 
   return (
