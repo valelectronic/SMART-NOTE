@@ -207,8 +207,6 @@ export default function DashboardPage() {
         isOpen={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         feature={null}
-        userEmail={data.profile.email ?? ""}
-        userId={data.profile.id ?? ""}
       />
     </div>
   );

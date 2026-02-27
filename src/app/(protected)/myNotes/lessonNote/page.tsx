@@ -527,8 +527,6 @@ export default function LessonNotePage() {
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         feature={lockedFeature}
-        userEmail={userEmail}
-        userId={userId}
       />
     </div>
   );

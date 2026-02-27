@@ -1,37 +1,53 @@
 "use client";
 
-import { X, Crown, FileText, Printer, Download, RefreshCw, Zap, Check } from "lucide-react";
+import { useState } from "react";
+import { X, Crown, FileText, Printer, Download, RefreshCw, Zap, Check, Loader2 } from "lucide-react";
 import Script from "next/script";
 import { toast } from "sonner";
+import { useSession } from "@/lib/db/auth.client";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   feature: string | null;
-  userEmail: string;
-  userId: string;
 }
 
-export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Props) {
+export function UpgradeModal({ isOpen, onClose, feature }: Props) {
+  const { data: session } = useSession();
+  const [isInitializing, setIsInitializing] = useState(false);
 
   const handlePayment = () => {
-    if (!(window as any).PaystackPop) {
-      toast.error("Payment system is loading, please try again.");
+    if (!session?.user) {
+      toast.error("User session not found. Please log in.");
       return;
     }
+
+    setIsInitializing(true);
+
+    if (!(window as any).PaystackPop) {
+      toast.error("Payment system is loading, please try again.");
+      setIsInitializing(false);
+      return;
+    }
+
     const handler = (window as any).PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-      email: userEmail,
+      email: session.user.email,
       amount: 300000,
       currency: "NGN",
-      metadata: { userId },
+      metadata: { userId: session.user.id },
       callback: () => {
+        setIsInitializing(false);
         toast.success("Payment successful! Upgrading your account...");
         onClose();
         setTimeout(() => window.location.reload(), 2000);
       },
-      onClose: () => toast.info("Payment cancelled"),
+      onClose: () => {
+        setIsInitializing(false);
+        toast.info("Payment cancelled");
+      },
     });
+
     handler.openIframe();
   };
 
@@ -60,19 +76,19 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
     },
     refinement: {
       title: "Refinement Limit Reached",
-      description: "You've used all 2 free edits. Upgrade for unlimited refinements.",
+      description: "You've used all 2 free edits. Upgrade for 3 edits per note.",
       icon: <Zap size={15} />,
     },
   };
 
-  const current = feature ? featureMessages[feature] : null;
-
   const perks = [
     { icon: <FileText size={14} />, label: "Note Generations", free: "5 notes", premium: "15 notes / term" },
-    { icon: <RefreshCw size={14} />, label: "Regenerations", free: "None", premium: "1 per note" },
-    { icon: <Zap size={14} />, label: "Refinements", free: "2 per note", premium: "3 per note" },
-    { icon: <Printer size={14} />, label: "Print & PDF Export", free: "Locked", premium: "Unlimited" },
+    { icon: <RefreshCw size={14} />, label: "Regenerations",   free: "None",    premium: "1 per note" },
+    { icon: <Zap size={14} />,      label: "Refinements",      free: "2 / note", premium: "3 per note" },
+    { icon: <Printer size={14} />,  label: "Print & PDF",      free: "Locked",  premium: "Unlimited" },
   ];
+
+  const current = feature ? featureMessages[feature] : null;
 
   return (
     <>
@@ -88,19 +104,18 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
           className="relative w-full max-w-sm sm:max-w-md bg-card border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Top accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 shrink-0" />
 
-          {/* Decorative top bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
-
-          {/* Drag pill (mobile) */}
-          <div className="flex justify-center pt-2.5 pb-0 sm:hidden">
+          {/* Drag pill — mobile only */}
+          <div className="flex justify-center pt-2.5 sm:hidden shrink-0">
             <div className="w-10 h-1 rounded-full bg-border" />
           </div>
 
           {/* Scrollable body */}
           <div className="overflow-y-auto flex-1 px-5 pt-4 pb-6 sm:px-7 sm:pt-6 sm:pb-8 space-y-5">
 
-            {/* Close */}
+            {/* Close button */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-muted"
@@ -123,7 +138,7 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
               </div>
             </div>
 
-            {/* Feature callout */}
+            {/* Feature-specific callout */}
             {current && (
               <div className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl px-3.5 py-3">
                 <span className="mt-0.5 text-amber-600 dark:text-amber-400 shrink-0">
@@ -137,7 +152,7 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
 
             {/* Comparison table */}
             <div className="rounded-2xl border border-border overflow-hidden text-xs sm:text-sm">
-              {/* Header row */}
+              {/* Header */}
               <div className="grid grid-cols-3 bg-muted/60 px-3 py-2 font-semibold text-muted-foreground text-[11px] uppercase tracking-wide">
                 <span>Feature</span>
                 <span className="text-center">Free</span>
@@ -183,18 +198,31 @@ export function UpgradeModal({ isOpen, onClose, feature, userEmail, userId }: Pr
             <div className="flex flex-col gap-2.5">
               <button
                 onClick={handlePayment}
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm sm:text-base"
+                disabled={isInitializing}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold rounded-2xl py-3.5 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm sm:text-base disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                <Zap size={16} className="fill-white" />
-                Pay ₦3,000 Now
+                {isInitializing ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <>
+                    <Zap size={16} className="fill-white" />
+                    Pay ₦3,000 Now
+                  </>
+                )}
               </button>
+
               <button
                 onClick={onClose}
-                className="w-full border border-border hover:bg-muted active:scale-95 rounded-2xl py-3 font-medium text-muted-foreground transition-all text-sm"
+                disabled={isInitializing}
+                className="w-full border border-border hover:bg-muted active:scale-95 rounded-2xl py-3 font-medium text-muted-foreground transition-all text-sm disabled:opacity-50"
               >
                 Maybe Later
               </button>
             </div>
+
+            <p className="text-center text-xs text-muted-foreground italic">
+              Secure payment powered by Paystack
+            </p>
 
           </div>
         </div>
