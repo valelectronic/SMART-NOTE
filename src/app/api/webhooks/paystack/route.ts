@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) {
-      console.error("❌ Missing PAYSTACK_SECRET_KEY in env variables");
+      console.error(" Missing PAYSTACK_SECRET_KEY in env variables");
       return new Response("Server config error", { status: 500 });
     }
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       .digest("hex");
 
     if (hash !== signature) {
-      console.warn("❌ Signature mismatch. Check if your Secret Key is correct.");
+      console.warn(" Signature mismatch. Check if your Secret Key is correct.");
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       console.log(`✅ Webhook received for User: ${userId}`);
 
       if (!userId) {
-        console.error("❌ No userId in metadata");
+        console.error(" No userId in metadata");
         return NextResponse.json({ error: "No userId" }, { status: 400 });
       }
 
