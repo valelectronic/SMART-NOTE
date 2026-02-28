@@ -9,57 +9,56 @@ export async function POST(req: Request) {
     const body = await req.text();
     const signature = req.headers.get("x-paystack-signature");
 
-    // 1. SECURITY: Verify HMAC signature
-    if (!signature) {
-      return new Response("No signature provided", { status: 401 });
+    if (!signature) return new Response("No signature", { status: 401 });
+
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+      console.error("❌ Missing PAYSTACK_SECRET_KEY in env variables");
+      return new Response("Server config error", { status: 500 });
     }
 
     const hash = crypto
-      .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY!)
+      .createHmac("sha512", secret)
       .update(body)
       .digest("hex");
 
     if (hash !== signature) {
-      console.warn(" Invalid Webhook Signature detected");
+      console.warn("❌ Signature mismatch. Check if your Secret Key is correct.");
       return new Response("Unauthorized", { status: 401 });
     }
 
     const event = JSON.parse(body);
 
-    // 2. LOGIC: Handle Successful Charge
     if (event.event === "charge.success") {
       const userId = event.data.metadata?.userId;
+      
+      console.log(`✅ Webhook received for User: ${userId}`);
 
       if (!userId) {
-        console.error(" Payment received but userId missing in metadata");
-        return NextResponse.json({ error: "Metadata missing" }, { status: 400 });
+        console.error("❌ No userId in metadata");
+        return NextResponse.json({ error: "No userId" }, { status: 400 });
       }
 
-      // Calculate 4 months (roughly 120 days) for a standard academic term
       const termExpiry = new Date();
       termExpiry.setMonth(termExpiry.getMonth() + 4);
 
-      await db
+      const result = await db
         .update(onboarding)
         .set({
           subscriptionTier: "premium",
-          // Resetting lastPaymentDate moves the 'usageCheckpoint' forward,
-          // effectively resetting the 17-note counter in your generate API.
           lastPaymentDate: new Date(), 
           subscriptionExpiresAt: termExpiry,
-          // If you have an approval process, ensure they are approved upon payment
           approvalStatus: "approved", 
         })
         .where(eq(onboarding.userId, userId));
       
-      console.log(`User ${userId} successfully upgraded to Premium for the term.`);
+      console.log(`🚀 Database updated for ${userId}. Rows affected:`, result);
     }
 
-    // 3. ACKNOWLEDGE: Always return 200 to Paystack to stop retries
     return NextResponse.json({ received: true }, { status: 200 });
     
   } catch (err) {
-    console.error(" Webhook Error:", err);
-    return new Response("Webhook Handlers Error", { status: 500 });
+    console.error("💥 Webhook Crash:", err);
+    return new Response("Internal Error", { status: 500 });
   }
 }
