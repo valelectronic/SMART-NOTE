@@ -17,7 +17,10 @@ export function UpgradeModal({ isOpen, onClose, feature }: Props) {
   const [isInitializing, setIsInitializing] = useState(false);
 
   const handlePayment = () => {
-    if (!session?.user) {
+    // Correction: Ensure the ID is captured into a local variable first
+    const userId = session?.user?.id;
+
+    if (!userId) {
       toast.error("User session not found. Please log in.");
       return;
     }
@@ -33,13 +36,24 @@ export function UpgradeModal({ isOpen, onClose, feature }: Props) {
     const handler = (window as any).PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       email: session.user.email,
-      amount: 300000,
+      amount: 300000, // ₦3,000 in kobo
       currency: "NGN",
-      metadata: { userId: session.user.id },
-      callback: () => {
+      // IMPLEMENTED CORRECTION: Double-mapping metadata for Dashboard & Webhook visibility
+      metadata: {
+        userId: userId,
+        custom_fields: [
+          {
+            display_name: "User ID",
+            variable_name: "userId",
+            value: userId,
+          },
+        ],
+      },
+      callback: (response: any) => {
         setIsInitializing(false);
         toast.success("Payment successful! Upgrading your account...");
         onClose();
+        // Give the webhook 2 seconds to update the DB before refreshing the page
         setTimeout(() => window.location.reload(), 2000);
       },
       onClose: () => {
