@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic"; // Ensures no build-time caching
+export const revalidate = 0;           // Ensures no background revalidation
+
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { onboarding } from "@/lib/db/schema";
@@ -12,7 +15,7 @@ export async function GET() {
     if (!session?.user) {
       return NextResponse.json({ 
         isPremium: false, 
-        tier: "free" 
+        subscriptionTier: "free" 
       }, { status: 401 });
     }
 
@@ -23,7 +26,7 @@ export async function GET() {
     if (!teacherProfile) {
       return NextResponse.json({ 
         isPremium: false, 
-        tier: "free",
+        subscriptionTier: "free",
         message: "Onboarding incomplete" 
       }, { status: 200 });
     }
@@ -37,7 +40,7 @@ export async function GET() {
 
     return NextResponse.json({ 
       isPremium,
-      tier: teacherProfile.subscriptionTier || "free",
+      subscriptionTier: teacherProfile.subscriptionTier || "free",
       approvalStatus: teacherProfile.approvalStatus,
       premiumTrialUsed: teacherProfile.premiumTrialUsed || false,
       // Useful for showing "Your subscription expires in X days"

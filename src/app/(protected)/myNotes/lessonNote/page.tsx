@@ -10,7 +10,6 @@ import { RefinementPanel } from "./components/RefinementPanel";
 import { EmptyState } from "./components/EmptyState";
 import { UpgradeModal } from "./components/upgradeModal";
 
-// Plain grey bars — no spinners, no pulse
 function NoteLoadingSkeleton() {
   return (
     <div className="space-y-3 py-6" aria-label="Loading…">
@@ -25,20 +24,12 @@ function NoteLoadingSkeleton() {
   );
 }
 
-// Shown when the user hits the edit limit — friendly, not a dead end
-function EditLimitBanner({
-  onReset,
-  isResetting,
-}: {
-  onReset: () => void;
-  isResetting: boolean;
-}) {
+function EditLimitBanner({ onReset, isResetting }: { onReset: () => void; isResetting: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <p className="text-sm text-muted-foreground leading-snug">
         You&rsquo;ve reached the refinement limit for this note. Try generating
-        a new sub-topic, or reset to the original version — it&rsquo;s already
-        looking great.
+        a new sub-topic, or reset to the original version — it&rsquo;s already looking great.
       </p>
       <button
         onClick={onReset}
@@ -67,8 +58,6 @@ export default function LessonNotePage() {
   const [lockedFeature, setLockedFeature] = useState<string | null>(null);
   const [editLimitReached, setEditLimitReached] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
-  const [userId, setUserId] = useState("");
 
   const printRef = useRef<HTMLDivElement | null>(null);
 
@@ -82,18 +71,12 @@ export default function LessonNotePage() {
 
         let isPremiumStatus = false;
         try {
-          const premiumRes = await fetch("/api/user/premium-status");
+          const premiumRes = await fetch("/api/generate-lesson-note/premium-status");
           if (premiumRes.ok) {
             const premiumData = await premiumRes.json();
-
-            setUserEmail(premiumData.userEmail || "");
-            setUserId(premiumData.userId || "");
-
             isPremiumStatus =
               premiumData.isPremium ||
-              ["premium", "school"].includes(
-                premiumData.subscriptionTier || ""
-              ) ||
+              ["premium", "school"].includes(premiumData.subscriptionTier || "") ||
               premiumData.approvalStatus === "approved" ||
               false;
           }
@@ -132,28 +115,16 @@ export default function LessonNotePage() {
         setIsRefining(false);
         setEditLimitReached(false);
 
-        const res = await fetch(
-          `/api/generate-lesson-note/${selectedTopic.id}`,
-          { credentials: "include" }
-        );
+        const res = await fetch(`/api/generate-lesson-note/${selectedTopic.id}`, {
+          credentials: "include",
+        });
 
-        if (res.status === 404) {
-          setGeneratedNote(null);
-          setCacheSource(null);
-          return;
-        }
-
+        if (res.status === 404) { setGeneratedNote(null); setCacheSource(null); return; }
         if (!res.ok) throw new Error("Fetch failed");
 
         const data = await res.json();
-
-        if (data.note) {
-          setGeneratedNote(data.note);
-          setCacheSource("cache");
-        } else {
-          setGeneratedNote(null);
-          setCacheSource(null);
-        }
+        if (data.note) { setGeneratedNote(data.note); setCacheSource("cache"); }
+        else { setGeneratedNote(null); setCacheSource(null); }
       } catch (err: any) {
         console.error("Fetch error:", err);
         toast.error("Could not load note. Try selecting the topic again.");
@@ -165,10 +136,7 @@ export default function LessonNotePage() {
     fetchExistingNote();
   }, [selectedTopic?.id]);
 
-  // ─── Reset edit limit when topic changes ─────────────────────────────────
-  useEffect(() => {
-    setEditLimitReached(false);
-  }, [selectedTopic?.id]);
+  useEffect(() => { setEditLimitReached(false); }, [selectedTopic?.id]);
 
   // ─── Premium gate ─────────────────────────────────────────────────────────
   const handlePremiumAction = (action: () => void, feature: string) => {
@@ -180,32 +148,27 @@ export default function LessonNotePage() {
     action();
   };
 
-  // ─── Reset to original — no tokens consumed ───────────────────────────────
+  // ─── Reset to original ────────────────────────────────────────────────────
   const handleResetToOriginal = async () => {
     if (!generatedNote?.originalContent) {
       toast.error("No original version found for this note.");
       return;
     }
-
     if (generatedNote.content === generatedNote.originalContent) {
       toast.info("This note is already at its original version.");
       return;
     }
-
     setIsResetting(true);
     try {
-      const res = await fetch(
-        `/api/lesson-note/${generatedNote.id}/reset`,
-        { method: "POST", credentials: "include" }
-      );
-
+      const res = await fetch(`/api/lesson-note/${generatedNote.id}/reset`, {
+        method: "POST",
+        credentials: "include",
+      });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Reset failed");
       }
-
       const data = await res.json();
-
       setGeneratedNote((prev: any) => ({
         ...prev,
         content: prev.originalContent,
@@ -223,10 +186,7 @@ export default function LessonNotePage() {
   };
 
   // ─── Generate / refine / regenerate ──────────────────────────────────────
-  const handleGenerate = async (
-    isRefinement = false,
-    forceRegenerate = false
-  ) => {
+  const handleGenerate = async (isRefinement = false, forceRegenerate = false) => {
     if (!selectedTopic?.id) return;
 
     setLoading(true);
@@ -258,58 +218,29 @@ export default function LessonNotePage() {
       if (!res.ok) {
         switch (result.code) {
           case "LIMIT_REACHED":
-            toast.error("You've reached your note limit", {
-              id: toastId,
-              description: result.error,
-              duration: 5000,
-            });
+            toast.error("You've reached your note limit", { id: toastId, description: result.error, duration: 5000 });
             setLockedFeature("generation");
             setShowUpgradeModal(true);
             break;
-
           case "PREMIUM_REQUIRED":
-            toast.error("Upgrade to rewrite notes", {
-              id: toastId,
-              description: "Regeneration is available on Premium plans.",
-              duration: 4000,
-            });
+            toast.error("Upgrade to rewrite notes", { id: toastId, description: "Regeneration is available on Premium plans.", duration: 4000 });
             setLockedFeature("regenerate");
             setShowUpgradeModal(true);
             break;
-
           case "REGENERATE_LIMIT":
-            toast.error("Already rewritten once", {
-              id: toastId,
-              description:
-                "Use the refinement box below to keep improving this note.",
-              duration: 4000,
-            });
+            toast.error("Already rewritten once", { id: toastId, description: "Use the refinement box below to keep improving this note.", duration: 4000 });
             break;
-
           case "EDIT_LIMIT":
             toast.dismiss(toastId);
             setEditLimitReached(true);
-            if (!isPremium) {
-              setLockedFeature("refinement");
-              setShowUpgradeModal(true);
-            }
+            if (!isPremium) { setLockedFeature("refinement"); setShowUpgradeModal(true); }
             break;
-
           case "COOLDOWN":
-            toast.error("Please wait a moment", {
-              id: toastId,
-              description: result.error,
-              duration: 4000,
-            });
+            toast.error("Please wait a moment", { id: toastId, description: result.error, duration: 4000 });
             break;
-
           default:
-            toast.error(
-              result.error || "Something went wrong. Please try again.",
-              { id: toastId, duration: 4000 }
-            );
+            toast.error(result.error || "Something went wrong. Please try again.", { id: toastId, duration: 4000 });
         }
-
         if (isRefinement && previousNote) setGeneratedNote(previousNote);
         setIsRefining(false);
         setPreviousNote(null);
@@ -333,10 +264,7 @@ export default function LessonNotePage() {
         }
 
         if (result.usedPremiumTrial) {
-          toast.info("Free trial used", {
-            description: "Upgrade for unlimited notes and edits.",
-            duration: 5000,
-          });
+          toast.info("Free trial used", { description: "Upgrade for unlimited notes and edits.", duration: 5000 });
         }
       }
     } catch (err: any) {
@@ -344,68 +272,103 @@ export default function LessonNotePage() {
       if (isRefinement && previousNote) setGeneratedNote(previousNote);
       setIsRefining(false);
       setPreviousNote(null);
-      toast.error("Connection error", {
-        id: toastId,
-        description: "Check your internet and try again.",
-        duration: 4000,
-      });
+      toast.error("Connection error", { id: toastId, description: "Check your internet and try again.", duration: 4000 });
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Print ────────────────────────────────────────────────────────────────
-  const handlePrint = () => window.print();
-
-  // ─── PDF export ───────────────────────────────────────────────────────────
+  // ─── PDF export ──────────────────────────────────────────────────────────
+  // Uses iframe + browser native print (not html2canvas) to avoid oklch crash.
+  // @page { margin: 0mm } suppresses the browser's auto-added URL/date/title.
+  // Body padding compensates so content still has margins on the page.
   const handleExportPDF = async () => {
     if (!printRef.current) return;
-
-    toast.loading("Preparing PDF…", { id: "pdf-export" });
+    const toastId = "pdf-export";
+    toast.loading("Preparing PDF...", { id: toastId });
 
     try {
-      const html2pdf = (await import("html2pdf.js")).default;
-      const clonedElement = printRef.current.cloneNode(true) as HTMLElement;
+      const katexHref =
+        Array.from(document.styleSheets)
+          .map((s) => { try { return s.href ?? ""; } catch { return ""; } })
+          .find((h) => h.includes("katex")) ?? "";
 
-      clonedElement.querySelectorAll("*").forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        const cs = window.getComputedStyle(el);
-        if (cs.backgroundColor?.includes("lab"))
-          htmlEl.style.backgroundColor = "#ffffff";
-        if (cs.color?.includes("lab")) htmlEl.style.color = "#000000";
-        if (cs.borderColor?.includes("lab"))
-          htmlEl.style.borderColor = "#e5e7eb";
-      });
+      const noteHTML = printRef.current.innerHTML;
 
-      await html2pdf()
-        .set({
-          margin: [10, 10, 10, 10] as [number, number, number, number],
-          filename: `${selectedTopic?.topicTitle || "Lesson Note"} - ${currentTerm}.pdf`,
-          image: { type: "jpeg" as const, quality: 0.98 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            letterRendering: true,
-            logging: false,
-            backgroundColor: "#ffffff",
-            removeContainer: true,
-          },
-          jsPDF: {
-            unit: "mm" as const,
-            format: "a4" as const,
-            orientation: "portrait" as const,
-          },
-        })
-        .from(clonedElement)
-        .save();
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;";
+      document.body.appendChild(iframe);
 
-      toast.success("PDF saved", { id: "pdf-export", duration: 2500 });
+      const iDoc = iframe.contentDocument!;
+      iDoc.open();
+      iDoc.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${selectedTopic?.topicTitle ?? "Lesson Note"}</title>
+  ${katexHref ? `<link rel="stylesheet" href="${katexHref}"/>` : ""}
+  <style>
+    @page {
+      size: A4;
+      margin: 0mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: -apple-system, 'Inter', sans-serif;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #ffffff;
+      padding: 18mm 16mm;
+      margin: 0;
+    }
+    h1 { font-size: 20px; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 6px; }
+    h2 { font-size: 16px; font-weight: 700; margin: 20px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+    h3 { font-size: 14px; font-weight: 700; margin: 14px 0 4px; }
+    p  { margin: 6px 0; }
+    ul, ol { margin: 6px 0 6px 20px; }
+    li { margin: 3px 0; }
+    strong { font-weight: 700; }
+    em { font-style: italic; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+    th, td { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+    th { background: #f9fafb; font-weight: 600; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 14px 0; }
+    blockquote { border-left: 3px solid #ccc; margin: 8px 0; padding: 4px 12px; color: #555; }
+    code { font-family: monospace; font-size: 11px; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
+    pre { background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 8px 0; overflow: hidden; }
+    .katex-display { margin: 12px 0; padding: 8px 12px; background: #f8fafc; border-radius: 4px; }
+    .no-print { display: none !important; }
+  </style>
+</head>
+<body>${noteHTML}</body>
+</html>`);
+      iDoc.close();
+
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow!.focus();
+            iframe.contentWindow!.print();
+            toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
+          } catch (e) {
+            console.error(e);
+            toast.error("Print failed", { id: toastId });
+          } finally {
+            setTimeout(() => {
+              if (document.body.contains(iframe)) document.body.removeChild(iframe);
+            }, 2000);
+          }
+        }, 800);
+      };
+
     } catch (err) {
       console.error("PDF export error:", err);
-      toast.error("PDF failed. Please try again.", {
-        id: "pdf-export",
-        duration: 4000,
-      });
+      toast.error("PDF failed. Please try again.", { id: toastId });
     }
   };
 
@@ -421,12 +384,10 @@ export default function LessonNotePage() {
       />
 
       <main className="flex-1 overflow-y-auto bg-background">
-        {/* ↓ px-4 on mobile (was px-6), lg stays px-10 */}
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-10">
           <Suspense fallback={<NoteLoadingSkeleton />}>
             {selectedTopic ? (
               <div className="space-y-6">
-                {/* Topic heading + generate button */}
                 <TopicHeader
                   topic={selectedTopic}
                   generatedNote={generatedNote}
@@ -435,65 +396,39 @@ export default function LessonNotePage() {
                   onGenerate={() => handleGenerate(false, false)}
                 />
 
-                {/* Cold-load skeleton */}
                 {loading && !isRefining && <NoteLoadingSkeleton />}
 
-                {/* Note area */}
                 {generatedNote && !(loading && !isRefining) && (
                   <>
-                    {/* Regenerate / print / download */}
                     <ExportActions
                       generatedNote={generatedNote}
                       selectedTopic={selectedTopic}
                       currentTerm={currentTerm}
                       isPremium={isPremium}
-                      printRef={printRef}
-                      onRegenerate={() =>
-                        handlePremiumAction(
-                          () => handleGenerate(false, true),
-                          "regenerate"
-                        )
-                      }
-                      onPrint={() => handlePremiumAction(handlePrint, "print")}
-                      onDownload={() =>
-                        handlePremiumAction(handleExportPDF, "download")
-                      }
+                      onRegenerate={() => handlePremiumAction(() => handleGenerate(false, true), "regenerate")}
+                      onDownload={() => handlePremiumAction(handleExportPDF, "download")}
                     />
 
-                    {/* Edit-limit friendly banner with reset button */}
                     {editLimitReached && (
-                      <EditLimitBanner
-                        onReset={handleResetToOriginal}
-                        isResetting={isResetting}
-                      />
+                      <EditLimitBanner onReset={handleResetToOriginal} isResetting={isResetting} />
                     )}
 
-                    {/* Refinement status — one quiet line */}
                     {isRefining && (
                       <p className="text-sm text-muted-foreground pl-3 border-l-2 border-border">
                         Applying changes
-                        {instruction
-                          ? `: "${instruction.slice(0, 60)}${
-                              instruction.length > 60 ? "…" : ""
-                            }"`
-                          : "…"}
+                        {instruction ? `: "${instruction.slice(0, 60)}${instruction.length > 60 ? "…" : ""}"` : "…"}
                       </p>
                     )}
 
-                    {/* Note viewer — edge-to-edge on mobile, card on desktop */}
                     <div
                       ref={printRef}
                       className={[
                         "overflow-hidden bg-card",
-                        // Mobile: flush to screen edges, no radius
-                        // Desktop: contained card with border and radius
                         "-mx-4 sm:mx-0",
                         "border-y sm:border sm:rounded-xl border-border",
                         "print:border-0 print:rounded-none print:mx-0",
                         "transition-opacity duration-200",
-                        isRefining || isResetting
-                          ? "opacity-50 pointer-events-none"
-                          : "opacity-100",
+                        isRefining || isResetting ? "opacity-50 pointer-events-none" : "opacity-100",
                       ].join(" ")}
                     >
                       <LessonNoteViewer
@@ -502,7 +437,6 @@ export default function LessonNotePage() {
                       />
                     </div>
 
-                    {/* Refinement input — hidden once limit is reached */}
                     {!editLimitReached && (
                       <RefinementPanel
                         generatedNote={generatedNote}

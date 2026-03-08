@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    fetch("/api/dashboard?t=" + Date.now())
       .then(res => {
         if (!res.ok) throw new Error("Failed to load dashboard");
         return res.json();
@@ -202,7 +202,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ✅ Modal rendered at page level, triggered by state */}
+      {/*  Modal rendered at page level, triggered by state */}
       <UpgradeModal
         isOpen={showUpgrade}
         onClose={() => setShowUpgrade(false)}

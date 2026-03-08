@@ -1,3 +1,7 @@
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { lessonNotes, onboarding, aiUsageAnalytics, exportHistory } from "@/lib/db/schema";
@@ -82,7 +86,7 @@ export async function GET() {
     const isPaidSubscriber = ["premium", "school"].includes(profile.subscriptionTier || "");
     const isAdminApproved = profile.approvalStatus === "approved";
     const isPremium = isPaidSubscriber || isAdminApproved;
-    const limit = isPremium ? 999 : 5; // Effectively unlimited for premium
+    const limit = isPremium ? 15 : 5; // Effectively unlimited for premium
 
     // Calculate subscription status
     const subscriptionActive = profile.subscriptionExpiresAt 
