@@ -135,7 +135,7 @@ function getSubjectMeta(subject: string, classLevel: string): SubjectMeta | null
 function isCalculationSubject(subject: string, classLevel: string): boolean {
   const meta = getSubjectMeta(subject, classLevel);
   if (meta) return meta.isCalculation;
-  return ["mathematics", "physics", "chemistry", "accounting", "further mathematics"].some(k => subject.toLowerCase().includes(k));
+  return ["mathematics", "physics", "chemistry", "accounting"].some(k => subject.toLowerCase().includes(k));
 }
 
 function getReference(subject: string, classLevel: string): string {
@@ -154,14 +154,13 @@ function getAllReferences(subject: string, classLevel: string): string {
 
 function getAssignmentRule(level: EducationLevel): string {
   if (level === "primary") {
-    return `Write 3 simple homework questions and should be in a list format. Use fill-in-the-blank or short answer. No WAEC/JAMB labels.`;
+    return `Write 3 simple homework questions. Use fill-in-the-blank or short answer. No WAEC/JAMB labels.`;
   }
   if (level === "junior") {
-    return `Write 3-4 homework questions in BECE style and should be in a list format, Label each **(BECE Practice):**.`;
+    return `Write 3-4 homework questions in BECE style. Label each **(BECE Practice):**.`;
   }
-  return `Write 3-4 questions mixing and should be in a list format:
-* **(WAEC Practice):** essay question with marks, e.g. [10 marks] or
-* **(NECO Practice):** essay question with marks, e.g. [10 marks]
+  return `Write 3-4 questions mixing:
+* **(WAEC Practice):** essay question with marks, e.g. [10 marks]
 * **(JAMB Practice):** objective question followed by indented options:
   * A) option
   * B) option
@@ -324,47 +323,27 @@ function buildSubTopicsBlock(raw: any, topic: string): string {
 
 // ─── UNIVERSAL CONTENT PATTERN ────────────────────────────────────────────────
 const CONTENT_RULES = `
-CONTENT QUALITY & PEDAGOGY RULES:
+CONTENT RULES — every sub-topic, every subject:
 
-0. MANDATORY USER SUB-TOPICS: You MUST use the user-provided sub-topics. Develop each as a full "Teaching Step."
+0. The Section II template contains pre-written ### headings followed by [FILL]. Replace each [FILL] with the full content for that sub-topic. Never change the ### heading text above a [FILL]. Never skip a [FILL].
 
-1. CLASSROOM INTERACTION (For the Teacher):
-   For every sub-topic heading (###), include:
-   - **Teacher's Activity:** [Brief action, e.g., "Demonstrates the process using a chart."]
-   - **Students' Activity:** [Brief action, e.g., "Listen, observe, and ask questions."]
+1. Maximum 2 sentences before the list. Never a paragraph.
 
-2. THE STUDENT NOTE (For the Students to Copy):
-   - Immediately follow the Activities with a block titled: **"Note for Students:"**.
-   - This section must be written in **Textbook Style**: Formal, detailed, and organized using bullet points or numbered lists.
-   - It must be "self-study" ready—meaning if the student reads this at home, they fully understand the concept.
+2. Choose the list type that fits the content:
+   - Numbered (1. 2. 3.) for features, functions, causes, effects, steps, rules
+   - Lettered (a. b. c.) for named components, parts, branches, arms — each on its own line with a blank line between items
+   - Bullet (* item) for examples or unordered points
+   - If a sub-topic covers both advantages AND disadvantages: two separate labelled groups (**Advantages:** then **Disadvantages:**), never mixed
 
-3. FORMATTING HIERARCHY:
-   - ### for Sub-topic titles.
-   - **Bold Labels** for definitions.
-   - 1. 2. 3. for steps/processes.
-   - a. b. c. for components/types.
+3. Every list item is a complete explanatory sentence — never a bare label or word. Detailed enough that a student understands without a teacher.
 
-4. NIGERIAN CONTEXT: Use Naira ($$ \text{N} $$, or the symbol ₦), Nigerian towns, and local industry examples to make it relevant.
+4. Each sub-topic covers unique content — no repetition across sub-topics.
 
-5. NO CONVERSATIONAL FILLER: Do not say "In this section..." or "Moving on...". Write only what belongs in the teacher's record and the student's notebook.
+5. No filler. No narrative phrases. Write content directly.
 
-CURRICULUM ALIGNMENT RULE:
-1. AGE APPROPRIATENESS: Cross-reference the [Topic] and [Sub-topic] with the standard Nigerian NERDC curriculum for [Class Level]. 
-   - Primary (Basic 1-6): Focus on identification, uses, and simple descriptions.
-   - Junior Secondary (JSS 1-3): Focus on functions, characteristics, and basic processes.
-   - Senior Secondary (SSS 1-3): Focus on technical definitions, complex theories, and WAEC/JAMB standards.
-
-2. VAGUE SUB-TOPIC RESOLUTION: If a user provides a one-word sub-topic (e.g., "Uses"), do not just write general uses. Write curriculum-specific uses. 
-   - Example: For "Computer" in JSS 1, focus on "Uses of ICT in daily life." 
-   - Example: For "Computer" in SSS 1, focus on "Data processing and Information transmission."
-
-3. SUBJECT THEMES: Always align content with the official NERDC themes:
-   - Science: Focus on Observation and Experimentation.
-   - National Values: Focus on Citizenship, Integrity, and Nigerian Constitution.
-   - Vocational: Focus on Practical Skills and Entrepreneurship.
-
-
+6. The Summary sub-topic starts immediately with bullet points — no opening sentence.
 `.trim();
+
 // ─── PROMPT BUILDERS ──────────────────────────────────────────────────────────
 
 function buildSecondaryFreePrompt(ctx: any, headings: string[]): string {
@@ -378,11 +357,7 @@ function buildSecondaryFreePrompt(ctx: any, headings: string[]): string {
     ? "Write for JSS students (ages 10–14). Use simple, formal English. Define every technical term the first time it appears."
     : "Write for SSS students (ages 15–18). Use correct subject terminology. Depth must be sufficient for WAEC/JAMB examinations.";
 
-  // ── Section III scaffold ────────────────────────────────────────────────
-  // Free tier: clean numbered lists per sub-topic, no KEY POINT boxes.
-  // Professional enough to impress — but teachers will notice what's missing
-  // (KEY POINT exam callouts, NECO questions, diagram) when they see premium.
-  const sectionIII = headings.length > 0
+  const sectionIV = headings.length > 0
     ? headings.map((h, i) => `
 ### ${i + 1}. ${h.toUpperCase()}
 
@@ -415,13 +390,13 @@ ${depthNote}
 
 2. **FILL EVERY SLOT.** Every placeholder in <angle brackets> is a slot. Replace every single one with real content. Never leave angle bracket text in your output.
 
-3. **NIGERIAN CONTEXT.** Use ₦ for all currency (never "Naira" or "N"). Reference Nigerian institutions, cities, markets, and daily life. Examples must be Nigerian — not generic or Western.
+3. **NIGERIAN CONTEXT.** Use ₦ for all currency (never "Naira" or "N"). Reference Nigerian institutions, cities, markets, and daily life.
 
-4. **NUMBERED LISTS.** Use numbered lists (1. 2. 3.) for features, functions, causes, effects. Every list item must be a complete sentence of at least 15 words. Never write bare labels or one-word items.
+4. **NUMBERED LISTS.** Use numbered lists (1. 2. 3.) for features, functions, causes, effects. Every list item must be a complete sentence of at least 15 words.
 
-5. **MINIMUM LENGTH:** 700 words across the full note. If a sub-topic has natural variety (advantages AND disadvantages, types AND examples), cover both sides fully.
+5. **MINIMUM LENGTH:** 700 words. If a sub-topic has natural variety (advantages AND disadvantages, types AND examples), cover both sides fully.
 
-6. **EVALUATION:** Write 4 questions only. Do NOT provide answers. Mix one theory question and three objective questions with A/B/C/D options.
+6. **EVALUATION:** Write 4 questions only. Do NOT provide answers. Mix one theory question and three objective A/B/C/D questions.
 
 ---
 
@@ -431,7 +406,7 @@ ${header}
 
 ---
 
-## I. PERFORMANCE OBJECTIVES
+## I. BEHAVIOURAL OBJECTIVES
 
 By the end of this lesson, students should be able to:
 
@@ -439,33 +414,37 @@ By the end of this lesson, students should be able to:
 2. Identify and explain the key features and functions of ${ctx.topic}.
 3. Apply knowledge of ${ctx.topic} to real-life Nigerian situations.
 4. Answer ${examFocus} questions on ${ctx.topic} correctly.
+5. <Write one more measurable objective specific to this exact topic.>
 
 ---
 
-## II. PREVIOUS KNOWLEDGE & INSTRUCTIONAL MATERIALS
+## II. PREVIOUS KNOWLEDGE
 
-**Entry Behaviour:** Students have previously learned about <name the immediately preceding topic in the scheme of work>. This lesson builds on that foundation.
-
-**Instructional Materials:**
-- <One specific visual aid relevant to ${subject} and this topic>
-- <Textbook with chapter and page numbers>
-- <One additional resource: newspaper, specimen, sample document, or chart>
+Students have previously learned about <name the immediately preceding topic in the scheme of work>. This lesson builds directly on that foundation.
 
 ---
 
-## III. LESSON CONTENT
+## III. INSTRUCTIONAL MATERIALS
 
-${sectionIII}
-
----
-
-## IV. SUMMARY
-
-<Write 3 concise bullet points summarising the most important facts from this lesson. Each bullet must be a complete sentence.>
+- <One specific visual aid, chart, or physical object relevant to ${subject} and this topic>
+- <Textbook reference with chapter and page numbers>
+- <One additional resource: newspaper clipping, specimen, sample document, or chart>
 
 ---
 
-## V. EVALUATION (CLASS WORK)
+## IV. LESSON CONTENT
+
+${sectionIV}
+
+---
+
+## V. SUMMARY
+
+<Write 3 concise bullet points summarising the most important facts. Each bullet must be a complete sentence.>
+
+---
+
+## VI. EVALUATION (CLASS WORK)
 
 1. **(Theory):** <Define ${ctx.topic} and state any TWO of its functions or features.>
 
@@ -480,27 +459,21 @@ ${sectionIII}
 
 ---
 
-## VI. ASSIGNMENT
+## VII. ASSIGNMENT
 
 ${getAssignmentRule(level)}
 
 ---
 
-## VII. REFERENCE BOOKS
+## VIII. REFERENCE BOOKS
 
 ${getAllReferences(subject, classLevel)}
 
 ---
-[SYSTEM ENFORCEMENT: Before responding, scan your output and confirm:
-- No angle bracket slots remain unfilled
-- No pedagogy labels appear anywhere
-- ₦ is used for all currency references
-- Every list item is a complete sentence
-- Evaluation answers are NOT provided]`;
+[SYSTEM ENFORCEMENT: Before responding, confirm: no angle bracket slots unfilled, no pedagogy labels, ₦ for all currency, evaluation answers NOT provided]`;
 }
 
-
-export function buildSecondaryPremiumPrompt(ctx: any, headings: string[]): string {
+function buildSecondaryPremiumPrompt(ctx: any, headings: string[]): string {
   const subject    = ctx.subject;
   const classLevel = ctx.class ?? "";
   const level      = getEducationLevel(classLevel);
@@ -511,15 +484,11 @@ export function buildSecondaryPremiumPrompt(ctx: any, headings: string[]): strin
     ? "Write for JSS students (ages 10–14). Simple English. Define every new term the first time it appears."
     : "Write for SSS students (ages 15–18) preparing for WAEC and JAMB. Precise terminology. Every definition must be exam-worthy.";
 
-  // ── Section IV scaffold ───────────────────────────────────────────────────
-  // Placeholders use CAPS + angle brackets so the AI knows they are SLOTS to
-  // fill — not literal text to copy. Angle brackets are never valid markdown
-  // so the AI cannot confuse them with formatting.
   const sectionIV = headings.length > 0
     ? headings.map((h, i) => `
 ### ${i + 1}. ${h.toUpperCase()}
 
-**Definition:** <Write one precise, exam-ready sentence defining ${h}. Do NOT copy this placeholder.>
+**Definition:** <Write one precise, exam-ready sentence defining ${h}.>
 
 **Key Points:**
 
@@ -529,13 +498,13 @@ export function buildSecondaryPremiumPrompt(ctx: any, headings: string[]): strin
 
 **3. <Name the third key aspect of ${h}>:** <1–2 sentences explaining it.>
 
-> 📌 **${examFocus} KEY POINT:** <State the single most-tested examinable fact about ${h}. Be specific and direct — e.g. "The CBN was established by the CBN Act of 1958." Do NOT provide the answer to Question 5 here.>`
+> 📌 **${examFocus} KEY POINT:** <State the single most-tested examinable fact about ${h}. Be specific — e.g. "The CBN was established by the CBN Act of 1958.">`
     ).join("\n\n---\n\n")
     : `<Identify 5 NERDC-approved sub-topics for ${ctx.topic}. Apply the exact scaffold above to each one.>`;
 
   return `You are a Nigerian Master Teacher with 20 years' experience writing for Longman, Evans, and Learn Africa textbooks. You have marked ${examFocus} scripts as a Chief Examiner.
 
-Your task: write a complete, print-ready lesson note that a Nigerian teacher can photocopy and give directly to students. Quality must match "New School Mathematics", "Macmillan Geography", or "Longman Biology" textbooks.
+Your task: write a complete, print-ready lesson note matching the quality of Longman, Macmillan, and Evans Nigerian textbooks.
 
 ${depthNote}
 
@@ -545,27 +514,23 @@ ${depthNote}
 
 0. **SUBJECT TERMINOLOGY:** ${terminologyNote}
 
-1. **NO PEDAGOGY LABELS.** Never write "Teacher's Activity", "Students' Activity", "Note Detail", "Classroom Interaction", or "Instructional Presentation". Write facts for the student, not classroom narration.
+1. **NO PEDAGOGY LABELS.** Never write "Teacher's Activity", "Students' Activity", "Note Detail", "Classroom Interaction", or "Instructional Presentation".
 
-2. **NIGERIAN CONTEXT IS MANDATORY.** Every example must reference Nigeria — always use ₦ for currency (never write "Naira" or "N"), cite Nigerian institutions (CBN, INEC, NNPC, NAFDAC, NSE, SMEDAN), Nigerian cities, and daily Nigerian life. A lesson on Trade references Alaba Market or Balogun Market, not Amazon.
+2. **NIGERIAN CONTEXT IS MANDATORY.** Use ₦ for currency (never "Naira" or "N"). Cite Nigerian institutions (CBN, INEC, NNPC, NAFDAC, NSE). Use Nigerian cities and daily Nigerian life.
 
-3. **FILL EVERY SLOT.** Every placeholder written in <angle brackets> is a SLOT. Replace every single one with real content. Never leave angle bracket text in your output.
+3. **FILL EVERY SLOT.** Every <angle bracket> is a SLOT. Replace every single one with real content.
 
-4. **EXAM-FOCUSED.** Every sub-topic must end with a > 📌 **${examFocus} KEY POINT** block. This is non-negotiable.
+4. **EXAM-FOCUSED.** Every sub-topic must end with a > 📌 **${examFocus} KEY POINT** block. Non-negotiable.
 
-5. **DIAGRAM RULES.** Mermaid diagram must:
-   - Use \`graph TD\` only
-   - Node labels: maximum 4 words
-   - NO special characters, parentheses ( ), square brackets [ ], or quotes inside node text
-   - Wrap in \`\`\`mermaid ... \`\`\`
+5. **DIAGRAM RULES.** Mermaid: \`graph TD\` only, max 4-word node labels, NO special characters. Wrap in \`\`\`mermaid ... \`\`\`.
 
-6. **TOKEN DISCIPLINE.** Complete all 9 sections. If running long, compress Section V (Summary) — never cut Sections VII or VIII.
+6. **COMPLETE ALL 9 SECTIONS.** If running long, compress Section V (Summary) — never cut VIII or IX.
 
-7. **EVALUATION RULE.** Question 5 is Short Answer — write the question ONLY. Do NOT provide the answer.
+7. **EVALUATION RULE.** Question 5 is Short Answer — question ONLY, no answer.
 
 ---
 
-Write the complete lesson note now. Copy the header EXACTLY — do not alter any field.
+Write the complete lesson note now. Copy the header EXACTLY.
 
 ${header}
 
@@ -605,7 +570,7 @@ ${sectionIV}
 
 ## V. SUMMARY
 
-<Write maximum 3 bullet points, not paragraphs" . A student should be able to revise from these 3 points alone the night before the exam.>
+<Write maximum 3 bullet points. A student must be able to revise from these 3 points alone the night before the exam.>
 
 ---
 
@@ -621,23 +586,15 @@ graph TD
 
 ## VII. EVALUATION (CLASS WORK)
 
-Provide 5 questions modelled EXACTLY on ${examFocus} past question style:
+1. **(${examFocus} Theory — 5 marks):** <Define or explain — e.g. "Define ${ctx.topic} and state TWO of its functions.">
 
-1. **(${examFocus} Theory — 5 marks):** <Define or explain question — e.g. "Define ${ctx.topic} and state TWO of its functions.">
-
-2. **(${examFocus} Theory — 5 marks):** <List/state question — e.g. "State THREE importance of ${ctx.topic} to the Nigerian economy.">
+2. **(${examFocus} Theory — 5 marks):** <List/state — e.g. "State THREE importance of ${ctx.topic} to the Nigerian economy.">
 
 3. **(${examFocus} Objective):** <Question stem>
-   - A) <option>
-   - B) <option>
-   - C) <option>
-   - D) <option>
+   - A) <option>  B) <option>  C) <option>  D) <option>
 
 4. **(${examFocus} Objective):** <Question stem>
-   - A) <option>
-   - B) <option>
-   - C) <option>
-   - D) <option>
+   - A) <option>  B) <option>  C) <option>  D) <option>
 
 5. **(Short Answer — question ONLY, no answer):** <One direct factual recall question.>
 
@@ -654,10 +611,8 @@ ${getAssignmentRule(level)}
 ${getAllReferences(subject, classLevel)}
 
 ---
-[SYSTEM ENFORCEMENT: Scan your entire output before responding. If any of the following strings appear, delete them: "Teacher's Activity", "Students' Activity", "Note Detail", "Note Content Body", "Classroom Interaction", "Instructional Presentation", "Advanced Academic Detail". Also confirm: every <angle bracket slot> has been replaced with real content. Every sub-topic ends with a 📌 KEY POINT. ₦ is used for all currency — not "Naira" and not "N".]`;
+[SYSTEM ENFORCEMENT: Confirm: no pedagogy labels, every <angle bracket slot> replaced, every sub-topic ends with 📌 KEY POINT, ₦ for all currency.]`;
 }
-
-
 
 function buildPrimaryPrompt(ctx: any, headings: string[]): string {
   const subject     = ctx.subject;
@@ -665,17 +620,13 @@ function buildPrimaryPrompt(ctx: any, headings: string[]): string {
   const header      = buildHeader(ctx, subject);
   const terminology = getTerminologyNote(subject);
 
-  // Detect class level for age-appropriate language
-  const classNum    = parseInt((classLevel.match(/\d/) ?? ["3"])[0], 10);
-  const isLower     = classNum <= 3; // Primary 1–3: very simple, picture-based
-  const ageNote     = isLower
-    ? "Write for pupils aged 6–9 (Primary 1–3). Use very short sentences. Maximum 12 words per sentence. Explain everything as if talking to a child."
-    : "Write for pupils aged 10–12 (Primary 4–6). Use simple but complete sentences. Build towards Basic Education Certificate Examination (BECE) readiness.";
+  const classNum = parseInt((classLevel.match(/\d/) ?? ["3"])[0], 10);
+  const isLower  = classNum <= 3;
+  const ageNote  = isLower
+    ? "Write for pupils aged 6–9 (Primary 1–3). Use very short sentences. Maximum 12 words per sentence."
+    : "Write for pupils aged 10–12 (Primary 4–6). Use simple but complete sentences. Build towards BECE readiness.";
 
-  // ── Section III scaffold ────────────────────────────────────────────────
-  // Each sub-topic: simple definition → numbered explanation points →
-  // one Nigerian story/scenario. No KEY POINT boxes (that's secondary premium).
-  const sectionIII = headings.length > 0
+  const sectionIV = headings.length > 0
     ? headings.map((h, i) => `
 ### ${i + 1}. ${h.toUpperCase()}
 
@@ -683,17 +634,17 @@ function buildPrimaryPrompt(ctx: any, headings: string[]): string {
 
 **Explanation:**
 
-<Write 2 simple sentences about ${h}. Use a Nigerian example — mention Olu, Zainab, Chidi, the school compound, Jollof rice, the market, or the farm.>
+<Write 2 simple sentences about ${h}. Use a Nigerian example — mention Olu, Zainab, Chidi, the school compound, the market, or the farm.>
 
 **Points to Know:**
 
-1. <First point about ${h} — a complete, simple sentence of at least 12 words. Use a local Nigerian example.>
+1. <First point — a complete simple sentence of at least 12 words. Use a Nigerian example.>
 2. <Second point — complete simple sentence with a Nigerian name or place.>
 3. <Third point — complete simple sentence.>
 
-**Class Activity:** <Write one short, practical activity pupils can do at their desks or in the classroom to understand ${h}. Example: "Draw and label..." or "Write the names of three...">`
+**Class Activity:** <One short desk activity pupils can do to understand ${h}.>`
     ).join("\n\n---\n\n")
-    : `<Identify 4–5 sub-topics from the NERDC Primary Curriculum for ${classLevel} on the topic "${ctx.topic}". Apply the exact scaffold above to each one.>`;
+    : `<Identify 4–5 sub-topics from the NERDC Primary Curriculum for ${classLevel} on "${ctx.topic}". Apply the exact scaffold above to each one.>`;
 
   return `You are an experienced Nigerian Primary School Teacher writing a lesson note for ${subject}, ${classLevel}.
 
@@ -703,21 +654,19 @@ ${ageNote}
 
 ---
 
-## STRICT RULES — every rule must be followed:
+## STRICT RULES:
 
-1. **NO PEDAGOGY LABELS.** Never write "Teacher's Activity", "Pupils' Activity", "Note for Students", "Classroom Interaction", or "Instructional Presentation". Write content the pupil reads and understands directly.
+1. **NO PEDAGOGY LABELS.** Never write "Teacher's Activity", "Pupils' Activity", "Note for Students", or "Instructional Presentation".
 
-2. **FILL EVERY SLOT.** Every placeholder in <angle brackets> is a slot. Replace every single one with real content. Never leave angle bracket text in your output.
+2. **FILL EVERY SLOT.** Every <angle bracket> is a slot. Replace every single one. Never leave angle bracket text in your output.
 
-3. **NIGERIAN NAMES AND EXAMPLES ARE MANDATORY.** Use Nigerian names (Olu, Zainab, Chidi, Amaka, Emeka, Fatima). Use Nigerian places (Lagos, Kano, Enugu, the school compound, Mama's shop, the market). Use ₦ for all money (never "Naira" or "N").
+3. **NIGERIAN NAMES AND EXAMPLES ARE MANDATORY.** Use Nigerian names (Olu, Zainab, Chidi, Amaka, Emeka, Fatima). Use ₦ for all money (never "Naira" or "N").
 
-4. **SIMPLE SENTENCES.** Every sentence must be complete and easy to understand. ${isLower ? "Maximum 12 words per sentence for Primary 1–3." : "Maximum 18 words per sentence for Primary 4–6."}
+4. **SIMPLE SENTENCES.** ${isLower ? "Maximum 12 words per sentence." : "Maximum 18 words per sentence."}
 
-5. **NUMBERED LISTS ONLY.** Use numbered lists (1. 2. 3.) for all points. Never use bullet points (•) or dashes (—) for main content.
+5. **CLASS ACTIVITY per sub-topic.** Every sub-topic must end with one short desk activity.
 
-6. **CLASS ACTIVITY per sub-topic.** Every sub-topic must end with one short, practical desk activity that a pupil can do without leaving their seat.
-
-7. **EVALUATION:** Write 3 simple questions only. Use fill-in-the-blank or short answer format. Do NOT write the answers.
+6. **EVALUATION:** 3 simple fill-in-the-blank or short answer questions. No answers.
 
 ---
 
@@ -733,63 +682,68 @@ By the end of this lesson, pupils should be able to:
 
 1. <Simple action objective — e.g. "Name THREE examples of ${ctx.topic} found in a Nigerian home.">
 2. <Second objective — identify or describe something about ${ctx.topic}.>
-3. <Third objective — use or apply knowledge of ${ctx.topic} in a simple way.>
+3. <Third objective — apply knowledge of ${ctx.topic} in a simple way.>
 4. <Fourth objective — draw, write, or state something about ${ctx.topic}.>
 
 ---
 
-## II. PREVIOUS KNOWLEDGE & INSTRUCTIONAL MATERIALS
+## II. PREVIOUS KNOWLEDGE
 
-**Entry Behaviour:** Pupils have previously learned about <name the topic covered in the previous week>. This lesson introduces ${ctx.topic} which builds on that knowledge.
+Pupils have previously learned about <name the topic covered in the previous week>. This lesson introduces ${ctx.topic} which builds on that knowledge.
 
-**Instructional Materials:**
-- <One physical object pupils can see or touch — e.g. "Real coins and ₦ notes for counting">
+---
+
+## III. INSTRUCTIONAL MATERIALS
+
+- <One physical object pupils can see or touch — e.g. "Real ₦ coins and notes for counting">
 - <One visual aid — e.g. "Wall chart showing types of ${ctx.topic}">
 - <One everyday Nigerian object relevant to this lesson>
 
 ---
 
-## III. LESSON CONTENT
+## IV. LESSON CONTENT
 
-${sectionIII}
-
----
-
-## IV. SUMMARY
-
-<Write 3 simple sentences telling pupils the most important things they learned today. Start each sentence with "Remember that...">
+${sectionIV}
 
 ---
 
-## V. EVALUATION (CLASS WORK)
+## V. SUMMARY
 
-1. <Fill-in-the-blank or short answer question about ${ctx.topic}.>
-2. <Fill-in-the-blank or short answer question — use a Nigerian name or example.>
-3. <Simple question asking pupils to name or list ONE thing from the lesson.>
+<Write 3 simple sentences. Start each with "Remember that...">
 
 ---
 
-## VI. ASSIGNMENT
+## VI. SUMMARY DIAGRAM
+
+\`\`\`mermaid
+graph TD
+<Write a simple flowchart summarising ${ctx.topic}. Max 4-word node labels. NO special characters. Use simple words a primary pupil can understand.>
+\`\`\`
+*Figure 1: Visual summary of ${ctx.topic}*
+
+---
+
+## VII. EVALUATION (CLASS WORK)
+
+1. <Fill-in-the-blank or short answer about ${ctx.topic}.>
+2. <Fill-in-the-blank — use a Nigerian name or example.>
+3. <Simple question asking pupils to name or list ONE thing.>
+
+---
+
+## VIII. ASSIGNMENT
 
 ${getAssignmentRule("primary")}
 
 ---
 
-## VII. REFERENCE BOOKS
+## IX. REFERENCE BOOKS
 
 ${getAllReferences(subject, classLevel)}
 
 ---
-[SYSTEM ENFORCEMENT: Before responding, scan your output and confirm:
-- No angle bracket slots remain unfilled
-- No pedagogy labels appear (Teacher's Activity, Pupils' Activity, Note for Students, Instructional Presentation)
-- ₦ is used for all money — never "Naira" or "N"
-- Every sub-topic ends with a Class Activity
-- Evaluation answers are NOT provided
-- All names used are Nigerian names]`;
+[SYSTEM ENFORCEMENT: Confirm: no angle bracket slots unfilled, no pedagogy labels, ₦ for all money, every sub-topic ends with Class Activity, evaluation answers NOT provided, all names are Nigerian.]`;
 }
-
-
 
 function buildCalculationPrompt(ctx: any, headings: string[] = []): string {
   const subject    = ctx.subject;
@@ -805,7 +759,7 @@ function buildCalculationPrompt(ctx: any, headings: string[] = []): string {
   // Token budget per sub-topic (Gold Standard example ≈ 250 tokens each):
   // 6000 output tokens − 600 fixed sections = 5400 for content
   // 6 topics × 250t/example = budget for ~3 per topic max, but derivation adds ~150t each
-  // So: 6 topics × (150 + 2×250) = 3900   vs  6 × (150 + 3×250) = 5400  (tight)
+  // So: 6 topics × (150 + 2×250) = 3900 ✅  vs  6 × (150 + 3×250) = 5400 ✅ (tight)
   const exCount    = topicCount <= 2
     ? (isMaths ? "3" : "2–3")   // 1–2 sub-topics: generous
     : topicCount <= 3
@@ -942,24 +896,27 @@ By the end of this lesson, students should be able to:
 
 ---
 
-## II. PREVIOUS KNOWLEDGE & INSTRUCTIONAL MATERIALS
+## II. PREVIOUS KNOWLEDGE
 
-**Entry Behaviour:** Students have previously learned about <name the immediately preceding topic in the scheme of work>. This lesson builds on that foundation.
+Students have previously learned about <name the immediately preceding topic in the scheme of work>. This lesson builds on that foundation.
 
-**Instructional Materials:**
+---
+
+## III. INSTRUCTIONAL MATERIALS
+
 - <One specific laboratory apparatus or physical demonstration tool>
 - <Textbook with chapter and page numbers>
 - <One real Nigerian object or data source — e.g. "PHCN electricity bill showing units consumed", "road distance chart between Lagos and Abuja">
 
 ---
 
-## III. LESSON CONTENT
+## IV. LESSON CONTENT
 
 ${sectionIII}
 
 ---
 
-## IV. PRACTICE PROBLEMS
+## V. PRACTICE PROBLEMS
 
 Attempt the following without looking at the worked examples:
 
@@ -969,7 +926,17 @@ Attempt the following without looking at the worked examples:
 
 ---
 
-## V. EVALUATION (CLASS WORK)
+## VI. SUMMARY DIAGRAM
+
+\`\`\`mermaid
+graph TD
+<Write a simple flowchart summarising the key formulas and steps for ${ctx.topic}. Max 4-word node labels. NO special characters.>
+\`\`\`
+*Figure 1: Visual summary of ${ctx.topic}*
+
+---
+
+## VII. EVALUATION (CLASS WORK)
 
 1. **(${examFocus} Theory — 5 marks):** <Define ${ctx.topic} and state the formula with all symbols explained.>
 2. **(${examFocus} Calculation — 10 marks):** <A two-step calculation problem in Nigerian context. Do NOT provide the answer here.>
@@ -980,13 +947,13 @@ Attempt the following without looking at the worked examples:
 
 ---
 
-## VI. ASSIGNMENT
+## VIII. ASSIGNMENT
 
 ${getAssignmentRule(level)}
 
 ---
 
-## VII. REFERENCE BOOKS
+## IX. REFERENCE BOOKS
 
 ${getAllReferences(subject, classLevel)}
 
@@ -1037,24 +1004,53 @@ export async function generateLessonNote(context: any, isPremium: boolean) {
   if (!validation.valid) return { text: validation.message, provider: "validator" };
 
   const resolvedHeadings = extractSubTopics(context.subTopics, context.topic ?? "");
-  const headingsForPrompt = resolvedHeadings ?? [];
+  const rawHeadings      = resolvedHeadings ?? [];
+
+  // Hard cap: calculation subjects with 8+ sub-topics will always truncate.
+  // Cap at 7 — the AI covers the most important ones and the note stays complete.
+  const isCalcTopic      = isCalculationSubject(context.subject, context.class ?? "");
+  const headingsForPrompt = isCalcTopic && rawHeadings.length > 7
+    ? rawHeadings.slice(0, 7)
+    : rawHeadings;
+
   const systemPrompt = getSystemPrompt(context, isPremium, headingsForPrompt);
 
   const userPrompt = `Write the complete lesson note for the topic: "${context.topic}". Follow all instructions in your system prompt exactly. Start with LESSON NOTE immediately.`.trim();
 
   if (isPremium) {
     try {
+      const isCalc = isCalculationSubject(context.subject, context.class);
+      // Cache the system prompt (the big prompt) so that if the teacher immediately
+      // refines or regenerates, Anthropic charges 90% less for re-reading it.
+      // cache lasts 5 minutes — well within a typical note review session.
       const response = await generateText({
         model: anthropic("claude-haiku-4-5-20251001"),
-        system: systemPrompt,
-        prompt: userPrompt,
-        temperature: isCalculationSubject(context.subject, context.class) ? 0.1 : 0.2,
-        maxOutputTokens: 4000,
+        messages: [
+          {
+            role: "system" as const,
+            content: systemPrompt,
+            // ai@6 / @ai-sdk/anthropic@3 — providerOptions replaces experimental_providerMetadata
+            providerOptions: {
+              anthropic: { cacheControl: { type: "ephemeral" } },
+            },
+          },
+          {
+            role: "user" as const,
+            content: userPrompt,
+          },
+        ],
+        temperature: isCalc ? 0.2 : 0.4,
+        maxOutputTokens: isCalc ? 6000 : 4000,
       });
       return {
         text: response.text.trim(),
         provider: "anthropic-haiku-premium",
-        usage: { promptTokens: response.usage.inputTokens ?? 0, completionTokens: response.usage.outputTokens ?? 0 },
+        usage: {
+          promptTokens:       response.usage.inputTokens          ?? 0,
+          completionTokens:   response.usage.outputTokens         ?? 0,
+          cacheWriteTokens:   (response.usage as any).cacheCreationInputTokens ?? 0,
+          cacheReadTokens:    (response.usage as any).cacheReadInputTokens     ?? 0,
+        },
       };
     } catch (err) {
       console.error("Claude failed, falling back to Groq:", err);
@@ -1062,12 +1058,13 @@ export async function generateLessonNote(context: any, isPremium: boolean) {
   }
 
   try {
+    const isCalcFree = isCalculationSubject(context.subject, context.class);
     const response = await generateText({
       model: groq("llama-3.3-70b-versatile"),
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: isCalculationSubject(context.subject, context.class) ? 0.2 : 0.3,
-      maxOutputTokens: 4000,
+      temperature: isCalcFree ? 0.2 : 0.3,
+      maxOutputTokens: isCalcFree ? 6000 : 4000,
     });
     return {
       text: response.text.trim(),
@@ -1081,54 +1078,204 @@ export async function generateLessonNote(context: any, isPremium: boolean) {
 }
 
 // ─── REFINER ──────────────────────────────────────────────────────────────────
-export async function refineLessonNote(originalContent: string, instruction: string, isPremiumActive: boolean) {
-  const prompt = `You are editing a Nigerian school lesson note. This note may be for any subject — Mathematics, Biology, Economics, Government, English, Agricultural Science, CRS, Geography, Computer Studies, Home Economics, or any other Nigerian school subject. Apply the requested change correctly and completely regardless of subject.
+// Architecture: two-step surgical patch.
+//
+// Step 1 — LOCATE (AI, ~300 output tokens):
+//   AI returns a JSON patch: { target, replacement, section, change_type }
+//   target = verbatim block to replace; replacement = patched version of that block.
+//
+// Step 2 — PATCH (TypeScript string replace, $0):
+//   Exact match → replace. Fuzzy match → whitespace-normalised replace.
+//   If neither match → PATCH_TARGET_NOT_FOUND → fallback to full rewrite.
+//
+// Cost comparison:
+//   Surgical: ~3000 input + ~300 output tokens per edit
+//   Full rewrite: ~3000 input + ~4000 output tokens per edit
+//   Savings: ~93% on output tokens for typical edits
 
-INSTRUCTION: "${instruction}"
+// ── Whitespace normaliser for fuzzy matching ──────────────────────────────────
+// Collapses all runs of whitespace to a single space so Claude's minor
+// whitespace hallucinations don't trigger a costly fallback rewrite.
+function normaliseWS(str: string): string {
+  return str.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
 
-HOW TO APPLY CHANGES — works for any subject:
-- ADD something (e.g. "add disadvantages", "add more types", "add examples", "add a table") — find the right sub-topic in Section II and insert properly formatted content there, not at the end of the note
-- EXPAND or EXPLAIN something (e.g. "explain the types more", "add more detail to functions") — rewrite that specific sub-topic with fuller explanations on every list item
-- FIX or CORRECT something (e.g. "fix the evaluation questions", "correct the formula") — locate and fix it precisely
-- SEPARATE something (e.g. "separate advantages from disadvantages", "split types into two groups") — split into two clearly labelled sub-groups within the same sub-topic
-- ADD a missing counterpart (e.g. "add disadvantages" when only advantages exist, "add merits" when only demerits exist) — insert a new labelled group directly after the existing one
+// ── Find-and-replace that tries exact then fuzzy ──────────────────────────────
+function applyPatch(original: string, target: string, replacement: string): string | null {
+  // Pass 1: exact match after CRLF normalisation
+  const normOrig   = original.replace(/\r\n/g, "\n");
+  const normTarget = target.replace(/\r\n/g, "\n");
+  if (normOrig.includes(normTarget)) {
+    return normOrig.replace(normTarget, replacement);
+  }
 
-CONTENT QUALITY RULES — apply to every subject:
-- Every list item must have a FULL explanation a student can understand on its own — never just a word or label
-  - Right (Sciences): "* **[Concept]** — [what it is, how it works, what it produces — one complete sentence]."
-  - Right (Commerce/Economics): "* **[Concept]** — [definition, what it regulates or affects, real example — one complete sentence]."
-  - Right (Government/Civic): "* **[Concept]** — [definition, role or function, Nigerian institutional example — one complete sentence]."
-  - Right (any subject): the explanation must be long enough that a student reading it alone fully understands the concept.
-- When advantages and disadvantages appear together, always present them in two separate labelled groups: **Advantages:** then **Disadvantages:**
-- Do not add repeated content that already appears elsewhere in the note
-- Preserve the subject's terminology — do not simplify or change technical terms
+  // Pass 2: fuzzy match — collapse whitespace, find position, splice replacement in
+  const fuzzyOrig   = normaliseWS(normOrig);
+  const fuzzyTarget = normaliseWS(normTarget);
+  if (fuzzyOrig.includes(fuzzyTarget)) {
+    console.log("[refiner] fuzzy match saved a fallback");
+    // Rebuild: find the fuzzy-target in the fuzzy-original and map back to original
+    // Simplest safe approach: replace in the whitespace-normalised string
+    return fuzzyOrig.replace(fuzzyTarget, normaliseWS(replacement));
+  }
 
-FORMATTING RULES — preserve throughout for all subjects:
-- ## for major section headings (## I. ## II. ## III.)
-- ### for numbered sub-topic headings inside Section II (### 1. ### 2. ### 3.)
-- **Bold label** — explanation for named list items
-- 1. 2. 3. numbered lists for features/functions/steps/causes/effects
-- a. b. c. lettered lists for components/parts/branches/arms
-- * bullet lists for examples/advantages/disadvantages/summary points
-- --- dividers between every major section
-- Mermaid diagram blocks and LaTeX expressions must be preserved exactly if present
+  return null; // no match — caller must fallback
+}
 
-Return the COMPLETE note from LESSON NOTE to the last section with the change correctly applied.
+export async function refineLessonNote(
+  originalContent: string,
+  instruction: string,
+  isPremiumActive: boolean
+) {
+  const model = isPremiumActive
+    ? anthropic("claude-haiku-4-5-20251001")
+    : groq("llama-3.3-70b-versatile");
+
+  // Static instructions — same every call, NOT cached (small, fast)
+  const locateInstructions = `ONLY return JSON. Start with { and end with }. No explanation. No markdown fences.
+
+You are a surgical editor for a Nigerian school lesson note.
+
+STEPS:
+1. Find the SINGLE smallest block that must change to apply the instruction.
+   - Sub-topic change  → that sub-topic only (### heading down to the --- divider).
+   - Evaluation change → the evaluation section only.
+   - One-line fix      → can be as small as one sentence.
+   - NEVER use the entire note as the target.
+2. Copy that block VERBATIM — every character, space, and markdown symbol exactly as it appears.
+3. Write the replacement with the instruction applied.
+4. Keep the replacement as small as possible — only the changed block.
+
+JSON (return this structure and nothing else):
+{
+  "target": "<verbatim block copied from the note>",
+  "replacement": "<patched version of that block>",
+  "section": "<e.g. SUB-TOPIC 2, EVALUATION, ASSIGNMENT>",
+  "change_type": "<add | expand | fix | separate | replace>"
+}
+
+CONTENT RULES inside replacement:
+- Nigerian context: ₦ for currency, Nigerian institutions and real places
+- Every list item = one complete sentence a student can understand alone
+- Sciences    : **Concept** — what it is, how it works, what it produces.
+- Economics   : **Concept** — definition, what it regulates, real Nigerian example.
+- Government  : **Concept** — definition, role/function, Nigerian institutional example.
+- Preserve LaTeX exactly  : do not alter $...$ or $$...$$ blocks
+- Preserve Mermaid exactly: do not alter \`\`\`mermaid blocks
+- Lists: 1.2.3. for features/steps, a.b.c. for components, * for examples/points
+- Advantages + disadvantages: always two separate labelled groups
+
+ONLY return JSON. Start with { and end with }.`.trim();
+
+  // ── Step 1: get patch from AI ─────────────────────────────────────────────
+  try {
+    let locateResponse: Awaited<ReturnType<typeof generateText>>;
+
+    if (isPremiumActive) {
+      // Cache the note — same note re-read on every edit within 5 min = 90% cheaper
+      locateResponse = await generateText({
+        model,
+        messages: [
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: locateInstructions },
+              {
+                type: "text" as const,
+                text: "NOTE:\n" + originalContent,
+                providerOptions: {
+                  anthropic: { cacheControl: { type: "ephemeral" } },
+                },
+              },
+              {
+                type: "text" as const,
+                text: "TASK: " + instruction + "\n\nONLY return JSON. Start with { and end with }.",
+              },
+            ],
+          },
+        ],
+        temperature: 0,
+        maxOutputTokens: 2000,
+      });
+    } else {
+      locateResponse = await generateText({
+        model,
+        prompt: [
+          locateInstructions,
+          "NOTE:\n" + originalContent,
+          "TASK: " + instruction + "\n\nONLY return JSON. Start with { and end with }.",
+        ].join("\n\n"),
+        temperature: 0,
+        maxOutputTokens: 2000,
+      });
+    }
+
+    const raw = locateResponse.text
+      .trim()
+      .replace(/^```json\s*|^```\s*|```\s*$/gm, "")
+      .trim();
+
+    let patch: { target: string; replacement: string; section: string; change_type: string };
+    try {
+      patch = JSON.parse(raw);
+    } catch {
+      throw new Error("PATCH_PARSE_FAILED");
+    }
+
+    if (!patch.target || !patch.replacement) throw new Error("PATCH_INVALID");
+
+    // ── Step 2: apply patch (exact → fuzzy → throw) ──────────────────────────
+    const patched = applyPatch(originalContent, patch.target, patch.replacement);
+    if (!patched) throw new Error("PATCH_TARGET_NOT_FOUND");
+
+    return {
+      text: patched.trim(),
+      provider: isPremiumActive ? "claude-refiner-surgical" : "groq-refiner-surgical",
+      usage: {
+        inputTokens:      locateResponse.usage.inputTokens                       ?? 0,
+        outputTokens:     locateResponse.usage.outputTokens                      ?? 0,
+        cacheWriteTokens: (locateResponse.usage as any).cacheCreationInputTokens ?? 0,
+        cacheReadTokens:  (locateResponse.usage as any).cacheReadInputTokens     ?? 0,
+      },
+    };
+
+  } catch (err: any) {
+    // ── Fallback: full rewrite when surgical patch fails ──────────────────────
+    console.warn("[refiner] surgical failed (" + err.message + ") — full rewrite");
+
+    const fallbackPrompt = `You are editing a Nigerian school lesson note.
+Apply this change: "${instruction}"
+
+RULES:
+- Change only the relevant section — do not alter anything else
+- Preserve all LaTeX ($...$ and $$...$$) and Mermaid blocks exactly
+- Keep all ## and ### headings, --- dividers, and list formatting intact
+- Nigerian context: ₦ for currency, Nigerian institutions and places
+- Return the COMPLETE note with the change applied — from LESSON NOTE to the last line
 
 ORIGINAL NOTE:
 ${originalContent}`.trim();
 
-  const model = isPremiumActive ? anthropic("claude-haiku-4-5-20251001") : groq("llama-3.3-70b-versatile");
-
-  try {
-    const response = await generateText({ model, prompt, temperature: 0.1, maxOutputTokens: 4000 });
-    return {
-      text: response.text.trim(),
-      provider: isPremiumActive ? "claude-refiner" : "groq-refiner",
-      usage: { inputTokens: response.usage.inputTokens ?? 0, outputTokens: response.usage.outputTokens ?? 0 },
-    };
-  } catch (err) {
-    console.error("Refinement error:", err);
-    throw new Error("Refinement failed.");
+    try {
+      const fallbackResponse = await generateText({
+        model,
+        prompt: fallbackPrompt,
+        temperature: 0.1,
+        maxOutputTokens: 6000,
+      });
+      return {
+        text: fallbackResponse.text.trim(),
+        provider: isPremiumActive ? "claude-refiner-fallback" : "groq-refiner-fallback",
+        usage: {
+          inputTokens:  fallbackResponse.usage.inputTokens  ?? 0,
+          outputTokens: fallbackResponse.usage.outputTokens ?? 0,
+          cacheWriteTokens: 0,
+          cacheReadTokens:  0,
+        },
+      };
+    } catch (finalErr) {
+      console.error("[refiner] fallback also failed:", finalErr);
+      throw new Error("Refinement failed.");
+    }
   }
 }
