@@ -1077,6 +1077,335 @@ export async function generateLessonNote(context: any, isPremium: boolean) {
   }
 }
 
+
+
+/// ─── ASSESSMENT GENERATOR ────────────────────────────────────────────────────
+// These functions live inside ai-service.ts.
+// They depend on: anthropic(), generateText, formatClass(),
+//                 getEducationLevel(), isCalculationSubject()
+// which are already defined in ai-service.ts.
+//
+// Architecture: two-call split for Mixed format.
+//
+// LIMITS (termly school assessment aligned to WAEC/JAMB/BECE format):
+//   Objectives only : max 20 questions → 1 call  (~2500 tokens output)
+//   Theory only     : max 10 questions → 1 call  (~2500 tokens output)
+//   Mixed           : max 30 total     → 2 parallel calls (Section A + B)
+//     Call 1: objectives   → ~2000 tokens
+//     Call 2: theory       → ~2500 tokens
+//     Merge in TypeScript  → $0
+//
+// Caching: source index is marked ephemeral — 90% cheaper on regeneration
+//          within 5 minutes (e.g. teacher changes count from 15 to 20).
+
+// ── Extract summary index from a single lesson note ───────────────────────────
+// Pulls: TOPIC, SUBJECT, CLASS, SUB-TOPICS, and V. SUMMARY bullets only.
+// Sending full notes = ~15,000 tokens. Index = ~500 tokens. 97% cheaper.
+export function extractNoteIndex(noteText: string): string {
+  const lines = noteText.split("\n");
+  const result: string[] = [];
+
+  const topicLine   = lines.find(l => l.startsWith("**TOPIC:**"));
+  const subjectLine = lines.find(l => l.startsWith("**SUBJECT:**"));
+  const classLine   = lines.find(l => l.startsWith("**CLASS:**"));
+
+  if (topicLine)   result.push(topicLine.replace(/\*\*/g, "").trim());
+  if (subjectLine) result.push(subjectLine.replace(/\*\*/g, "").trim());
+  if (classLine)   result.push(classLine.replace(/\*\*/g, "").trim());
+
+  // Sub-topics block
+  const subStart = lines.findIndex(l => l.startsWith("**SUB-TOPICS:**"));
+  if (subStart !== -1) {
+    result.push("Sub-topics covered:");
+    for (let i = subStart + 1; i < lines.length; i++) {
+      const l = lines[i].trim();
+      if (!l) continue;
+      if (l.startsWith("**") && !l.startsWith("**SUB")) break;
+      if (/^\d+\./.test(l)) result.push("  " + l);
+      else break;
+    }
+  }
+
+  // Summary bullets (Section V)
+  const summaryStart = lines.findIndex(l => /^## V\./.test(l));
+  if (summaryStart !== -1) {
+    result.push("Key facts taught:");
+    for (let i = summaryStart + 1; i < lines.length; i++) {
+      const l = lines[i].trim();
+      if (/^## [IVX]+\./.test(l)) break;
+      if (l.startsWith("*") || l.startsWith("-")) result.push("  " + l);
+    }
+  }
+
+  return result.join("\n");
+}
+
+// ── Config interface ──────────────────────────────────────────────────────────
+export interface AssessmentConfig {
+  type:         "Exam" | "Test" | "Assignment";
+  format:       "Objectives" | "Theory" | "Mixed";
+  objCount:     number;    // max 20 — enforced server-side
+  theoryCount:  number;    // max 10 — enforced server-side
+  subject:      string;
+  classLevel:   string;
+  schoolName?:  string;
+  teacherName?: string;
+  term?:        string;
+  duration?:    string;    // e.g. "1 hour 30 minutes"
+}
+
+// ── Paper header ──────────────────────────────────────────────────────────────
+function buildPaperHeader(config: AssessmentConfig): string {
+  const school   = config.schoolName  ?? "Not specified";
+  const teacher  = config.teacherName ?? "Not specified";
+  const term     = config.term        ?? "Not specified";
+  const duration = config.duration    ?? (config.type === "Exam" ? "1 hour 30 minutes" : "45 minutes");
+
+  return `${config.type.toUpperCase()}
+
+**SCHOOL:** ${school}
+**SUBJECT:** ${config.subject}
+**CLASS:** ${formatClass(config.classLevel)}
+**TERM:** ${term}
+**DURATION:** ${duration}
+**TEACHER:** ${teacher}
+
+---
+
+**INSTRUCTIONS:**
+- Answer ALL questions.
+- Write your name and class on your answer sheet.
+- All workings must be shown for theory questions.`;
+}
+
+// ── Section A — objectives prompt ─────────────────────────────────────────────
+function buildObjectivesPrompt(
+  noteIndexes: string[],
+  config: AssessmentConfig,
+  headerBlock: string
+): string {
+  const examFocus = getEducationLevel(config.classLevel) === "junior" ? "BECE/JSCE" : "WAEC/JAMB";
+  const isCalc    = isCalculationSubject(config.subject, config.classLevel);
+  const n         = Math.min(config.objCount, 20);
+
+  return `You are a Nigerian school examiner setting a ${config.type} for ${config.subject}, ${formatClass(config.classLevel)}.
+Your questions must follow the EXACT style, format, and difficulty of real ${examFocus} past questions so pupils begin exam preparation from their first term.
+
+RULES — every one is mandatory:
+1. Write EXACTLY ${n} objective questions. No more, no fewer.
+2. Every question MUST come from the Source Material below. No outside topics.
+3. Each question has exactly 4 options: A) B) C) D) with ONE correct answer.
+4. Question style must be indistinguishable from a real ${examFocus} past paper — use the same phrasing, command words ("Which of the following...", "Calculate...", "State...") and distractor logic.
+5. Use Nigerian context: ₦ for money, Nigerian names (Olu, Zainab, Emeka), Nigerian institutions (CBN, NNPC, INEC, NAFDAC).
+6. ${isCalc ? "At least 40% of questions must involve calculations using LaTeX ($inline$)." : "Test definitions, functions, and real-life applications."}
+7. Vary difficulty: 40% easy, 40% medium, 20% hard — matching ${examFocus} distribution.
+8. After all questions, write a clearly labelled ANSWER KEY listing: 1. A  2. C ... etc.
+9. Return ONLY the section content — no introductory text, no explanations.
+
+SOURCE MATERIAL (questions must come from here only):
+${noteIndexes.map((idx, i) => `Source ${i + 1}:\n${idx}`).join("\n\n")}
+
+OUTPUT FORMAT — start immediately with the header then questions:
+
+${headerBlock}
+
+---
+
+**SECTION A — OBJECTIVES (${n} marks)**
+
+Each question carries 1 mark. Choose the most correct option.
+
+<Write questions 1–${n} here>
+
+---
+
+**ANSWER KEY**
+
+<List: 1. A  2. B  3. C ... for all ${n} questions>
+
+[ENFORCE: Exactly ${n} questions. Every question from source material. Answer Key complete.]`;
+}
+
+// ── Section B — theory prompt ─────────────────────────────────────────────────
+function buildTheoryPrompt(
+  noteIndexes: string[],
+  config: AssessmentConfig,
+  headerBlock: string,
+  startNumber: number   // continues numbering from Section A
+): string {
+  const examFocus = getEducationLevel(config.classLevel) === "junior" ? "BECE/JSCE" : "WAEC/JAMB";
+  const isCalc    = isCalculationSubject(config.subject, config.classLevel);
+  const n         = Math.min(config.theoryCount, 10);
+
+  return `You are a Nigerian school examiner setting a ${config.type} for ${config.subject}, ${formatClass(config.classLevel)}.
+Your questions must follow the EXACT style, structure, and marking conventions of real ${examFocus} past questions so pupils begin exam preparation from their first term.
+
+RULES — every one is mandatory:
+1. Write EXACTLY ${n} theory questions numbered ${startNumber}–${startNumber + n - 1}. No more, no fewer.
+2. Every question MUST come from the Source Material below. No outside topics.
+3. Question structure must match real ${examFocus} theory papers — use sub-parts (a)(b)(c), command words ("Define", "Explain", "Distinguish between", "State and explain"), and mark allocations exactly as ${examFocus} does.
+4. State marks clearly in brackets e.g. [5 marks] [10 marks] — total per question must equal 10 marks.
+5. Use Nigerian context: ₦ for money, Nigerian names (Olu, Zainab, Emeka), Nigerian institutions (CBN, NNPC, INEC, NAFDAC, NSE).
+6. ${isCalc ? "Calculation questions must follow Gold Standard: Given → Required → Formula → Solution → Boxed Answer. Use LaTeX for all equations." : "Each question must require at least 3–5 distinct answer points for full marks."}
+7. After all questions, write a MARKING SCHEME — model answers with mark per point, exactly as ${examFocus} Chief Examiners write them.
+8. Return ONLY the section content — no introductory text, no explanations.
+
+SOURCE MATERIAL (questions must come from here only):
+${noteIndexes.map((idx, i) => `Source ${i + 1}:\n${idx}`).join("\n\n")}
+
+OUTPUT FORMAT${startNumber > 1 ? ` (Section B — numbering continues from ${startNumber})` : ""}:
+
+${startNumber === 1 ? headerBlock + "\n\n---\n\n" : ""}**SECTION B — THEORY (${n * 10} marks)**
+
+Answer ALL questions. Show all workings.
+
+<Write questions ${startNumber}–${startNumber + n - 1} here>
+
+---
+
+**MARKING SCHEME**
+
+<For each question: model answer points, mark per point, total marks>
+
+[ENFORCE: Exactly ${n} questions starting at ${startNumber}. Marking Scheme complete. All from source material.]`;
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+export async function generateAssessment(
+  selectedNotes: Array<{ id: string; content: string }>,
+  config: AssessmentConfig
+) {
+  if (selectedNotes.length === 0) {
+    throw new Error("Select at least one lesson note to generate an assessment from.");
+  }
+
+  // Hard caps enforced server-side — frontend can never trigger an oversized call
+  const safeConfig: AssessmentConfig = {
+    ...config,
+    objCount:    Math.min(config.objCount    ?? 0, 20),
+    theoryCount: Math.min(config.theoryCount ?? 0, 10),
+  };
+  if (safeConfig.format === "Mixed" && safeConfig.objCount + safeConfig.theoryCount > 30) {
+    safeConfig.theoryCount = 30 - safeConfig.objCount;
+  }
+
+  const model       = anthropic("claude-haiku-4-5-20251001");
+  const noteIndexes = selectedNotes.map(n => extractNoteIndex(n.content));
+  const header      = buildPaperHeader(safeConfig);
+
+  // ── OBJECTIVES ONLY — 1 call ───────────────────────────────────────────────
+  if (safeConfig.format === "Objectives") {
+    const response = await generateText({
+      model,
+      messages: [{
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: buildObjectivesPrompt(noteIndexes, safeConfig, header),
+            providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+          },
+          { type: "text" as const, text: "Generate the complete objectives paper now. Start with the header immediately." },
+        ],
+      }],
+      temperature:     0.3,
+      maxOutputTokens: 3000,
+    });
+    return {
+      text:     response.text.trim(),
+      provider: "claude-assessment-objectives",
+      usage: {
+        promptTokens:     response.usage.inputTokens                         ?? 0,
+        completionTokens: response.usage.outputTokens                        ?? 0,
+        cacheWriteTokens: (response.usage as any).cacheCreationInputTokens   ?? 0,
+        cacheReadTokens:  (response.usage as any).cacheReadInputTokens       ?? 0,
+      },
+    };
+  }
+
+  // ── THEORY ONLY — 1 call ───────────────────────────────────────────────────
+  if (safeConfig.format === "Theory") {
+    const response = await generateText({
+      model,
+      messages: [{
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: buildTheoryPrompt(noteIndexes, safeConfig, header, 1),
+            providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+          },
+          { type: "text" as const, text: "Generate the complete theory paper now. Start with the header immediately." },
+        ],
+      }],
+      temperature:     0.4,
+      maxOutputTokens: 3000,
+    });
+    return {
+      text:     response.text.trim(),
+      provider: "claude-assessment-theory",
+      usage: {
+        promptTokens:     response.usage.inputTokens                         ?? 0,
+        completionTokens: response.usage.outputTokens                        ?? 0,
+        cacheWriteTokens: (response.usage as any).cacheCreationInputTokens   ?? 0,
+        cacheReadTokens:  (response.usage as any).cacheReadInputTokens       ?? 0,
+      },
+    };
+  }
+
+  // ── MIXED — 2 parallel calls, merged in TypeScript ($0) ───────────────────
+  const [objResponse, theoryResponse] = await Promise.all([
+    generateText({
+      model,
+      messages: [{
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: buildObjectivesPrompt(noteIndexes, safeConfig, ""),
+            providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+          },
+          { type: "text" as const, text: `Generate Section A objectives only. No header. Start with "SECTION A" immediately.` },
+        ],
+      }],
+      temperature:     0.3,
+      maxOutputTokens: 2500,
+    }),
+    generateText({
+      model,
+      messages: [{
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: buildTheoryPrompt(noteIndexes, safeConfig, "", safeConfig.objCount + 1),
+            providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+          },
+          { type: "text" as const, text: `Generate Section B theory only. No header. Start with "SECTION B" immediately.` },
+        ],
+      }],
+      temperature:     0.4,
+      maxOutputTokens: 2500,
+    }),
+  ]);
+
+  // Merge: header + Section A + Section B
+  const merged = [header, "\n\n---\n\n", objResponse.text.trim(), "\n\n---\n\n", theoryResponse.text.trim()].join("");
+
+  return {
+    text:     merged,
+    provider: "claude-assessment-mixed",
+    usage: {
+      promptTokens:     (objResponse.usage.inputTokens  ?? 0) + (theoryResponse.usage.inputTokens  ?? 0),
+      completionTokens: (objResponse.usage.outputTokens ?? 0) + (theoryResponse.usage.outputTokens ?? 0),
+      cacheWriteTokens: ((objResponse.usage as any).cacheCreationInputTokens ?? 0) + ((theoryResponse.usage as any).cacheCreationInputTokens ?? 0),
+      cacheReadTokens:  ((objResponse.usage as any).cacheReadInputTokens     ?? 0) + ((theoryResponse.usage as any).cacheReadInputTokens     ?? 0),
+    },
+  };
+}
+
+
+
 // ─── REFINER ──────────────────────────────────────────────────────────────────
 // Architecture: two-step surgical patch.
 //

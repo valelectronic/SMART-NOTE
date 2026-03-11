@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { LessonNoteViewer } from "@/components/lessonNoteViewer/lessonNoteViewer";
 import { LessonNoteSidebar } from "./components/lessonNoteSidebar";
@@ -60,6 +61,21 @@ export default function LessonNotePage() {
   const [isResetting, setIsResetting] = useState(false);
 
   const printRef = useRef<HTMLDivElement | null>(null);
+  const searchParams = useSearchParams();
+
+  // ─── Auto-select topic from ?topic= URL param (e.g. from dashboard) ──────
+  useEffect(() => {
+    const topicId = searchParams?.get("topic");
+    if (!topicId || weeks.length === 0) return;
+    // Already selected — don't re-trigger
+    if (selectedTopic?.id === topicId) return;
+    // Flatten all subTopics from all weeks and find the match
+    const allTopics = weeks.flatMap((w: any) =>
+      Array.isArray(w.subTopics) ? w.subTopics : []
+    );
+    const match = allTopics.find((t: any) => t.id === topicId);
+    if (match) setSelectedTopic(match);
+  }, [searchParams, weeks]);
 
   // ─── Load topics + premium status ────────────────────────────────────────
   useEffect(() => {

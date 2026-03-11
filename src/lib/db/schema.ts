@@ -120,6 +120,18 @@ export const subscriptionTierEnum = pgEnum("subscription_tier", [
   "school" // For bulk institutional access
 ]);
 
+export const assessmentTypeEnum = pgEnum("assessment_type", [
+  "Exam",
+  "Test",
+  "Assignment",
+]);
+
+export const assessmentFormatEnum = pgEnum("assessment_format", [
+  "Objectives",
+  "Theory",
+  "Mixed",
+]);
+
 // onboarding table
 export const onboarding = pgTable("onboarding", {
 
@@ -181,6 +193,50 @@ export const onboarding = pgTable("onboarding", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// assessments table
+export const assessments = pgTable("assessments", {
+  id: varchar("id", { length: 36 })
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+
+  // Owner — same pattern as lessonNotes
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+
+  onboardingId: varchar("onboarding_id", { length: 36 })
+    .references(() => onboarding.id, { onDelete: "set null" }),
+
+  // ── What the teacher configured ──────────────────────────────────────────
+  type:   assessmentTypeEnum("type").notNull(),     // Exam | Test | Assignment
+  format: assessmentFormatEnum("format").notNull(), // Objectives | Theory | Mixed
+  subject:    varchar("subject",     { length: 100 }).notNull(),
+  classLevel: varchar("class_level", { length: 50  }).notNull(),
+  term:       varchar("term",        { length: 50  }),
+  duration:   varchar("duration",    { length: 50  }),
+
+  objCount:    integer("obj_count").default(0).notNull(),    // actual objectives written
+  theoryCount: integer("theory_count").default(0).notNull(), // actual theory questions written
+
+  // ── Which lesson notes were used as source material ───────────────────────
+  // Stored as comma-separated IDs e.g. "uuid1,uuid2,uuid3"
+  // Simple, no extra join table needed, easy to split on the frontend
+  sourceNoteIds: text("source_note_ids").notNull(),
+
+  // ── The generated paper ───────────────────────────────────────────────────
+  content: text("content").notNull(), // full markdown of the assessment paper
+
+  // ── AI metadata (mirrors lessonNotes pattern) ─────────────────────────────
+  aiModelUsed:  varchar("ai_model_used",  { length: 50 }),
+  providerUsed: varchar("provider_used",  { length: 50 }),
+
+  // ── Timestamps ────────────────────────────────────────────────────────────
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 // ✅ NEW: AI Usage & Financial Analytics
 export const aiUsageAnalytics = pgTable("ai_usage_analytics", {
@@ -366,12 +422,12 @@ export const lessonNotes = pgTable("lesson_notes", {
 
 /* ---------- Relations ---------- */
 export const onboardingRelations = relations(onboarding, ({ one, many }) => ({
-  user: one(user, { fields: [onboarding.userId],
-     references: [user.id] }),
+  user: one(user, { fields: [onboarding.userId], references: [user.id] }),
   lessonNotes: many(lessonNotes),
   schemeWeeks: many(schemeWeeks),
-  analytics : many(aiUsageAnalytics),
-}));
+  analytics: many(aiUsageAnalytics),
+  assessments: many(assessments),   
+}))
 
 
 
@@ -380,7 +436,7 @@ export const userRelations = relations(user, ({ many }) => ({
   profileSettings: many(ProfileSettings),
   lessonNotes: many(lessonNotes),
   analytics: many(aiUsageAnalytics),
-   
+  assessments: many(assessments),   
 }));
 
 export const aiUsageAnalyticsRelations = relations(aiUsageAnalytics, ({ one }) => ({
@@ -437,6 +493,15 @@ export const profileSettingsRelations = relations(ProfileSettings, ({ one }) => 
       references: [languages.id] }),
 }));
 
-
+export const assessmentsRelations = relations(assessments, ({ one }) => ({
+  user: one(user, {
+    fields: [assessments.userId],
+    references: [user.id],
+  }),
+  onboarding: one(onboarding, {
+    fields: [assessments.onboardingId],
+    references: [onboarding.id],
+  }),
+}));
 
 

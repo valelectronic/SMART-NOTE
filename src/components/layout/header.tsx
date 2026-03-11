@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut, useSession } from "@/lib/db/auth.client";
-import { Upload, Home, LogOut, Menu, Shield, Settings, X ,BadgeCheck, NotebookText, BookOpenText, Users} from "lucide-react";
+import { Upload, Home, LogOut, Menu, Shield, Settings, X ,BadgeCheck, NotebookText, BookOpenText, Users, FileText} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -68,6 +68,7 @@ const initials = (profile?.fullName || user?.name)
       { label: "Upload scheme of work", href: "/community/schemeOfWork", icon: Upload },
         { label: "lesson Note", href: "/myNotes/lessonNote", icon: NotebookText },
          { label: "About Us", href: "/community/aboutUs", icon: Users },
+         { label: "Assessments", href: "/community/dashboard/assessments", icon: FileText },
           { label: "Dashboard", href: "/community/dashboard", icon: Home },
         { label: "Settings", href: "/profile-settings", icon: Settings },
       ]
