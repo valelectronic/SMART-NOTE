@@ -280,7 +280,7 @@ export default function AssessmentPage() {
       const title = `${firstNote?.subject ?? "Assessment"} — ${config.type}`;
 
       const iframe = document.createElement("iframe");
-      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;";
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:794px;border:none;visibility:hidden;";
       document.body.appendChild(iframe);
 
       const iDoc = iframe.contentDocument!;
@@ -331,6 +331,11 @@ export default function AssessmentPage() {
       iDoc.close();
 
       iframe.onload = () => {
+
+         const body = iframe.contentDocument?.body;
+        if (body) {
+          iframe.style.height = body.scrollHeight + "px";
+        }
         setTimeout(() => {
           try {
             iframe.contentWindow!.focus();
