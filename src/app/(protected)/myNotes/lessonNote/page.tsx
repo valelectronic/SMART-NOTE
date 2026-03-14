@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, Suspense, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { LessonNoteViewer } from "@/components/lessonNoteViewer/lessonNoteViewer";
 import { LessonNoteSidebar } from "./components/lessonNoteSidebar";
@@ -25,7 +24,6 @@ function NoteLoadingSkeleton() {
   );
 }
 
-
 function EditLimitBanner({ onReset, isResetting }: { onReset: () => void; isResetting: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -43,7 +41,6 @@ function EditLimitBanner({ onReset, isResetting }: { onReset: () => void; isRese
     </div>
   );
 }
-
 
 export default function LessonNotePage() {
   const [weeks, setWeeks] = useState<any[]>([]);
@@ -63,23 +60,8 @@ export default function LessonNotePage() {
   const [isResetting, setIsResetting] = useState(false);
 
   const printRef = useRef<HTMLDivElement | null>(null);
-  const searchParams = useSearchParams();
 
-  // ─── Auto-select topic from ?topic= URL param (e.g. from dashboard)
-  useEffect(() => {
-    const topicId = searchParams?.get("topic");
-    if (!topicId || weeks.length === 0) return;
-    // Already selected — don't re-trigger
-    if (selectedTopic?.id === topicId) return;
-    // Flatten all subTopics from all weeks and find the match
-    const allTopics = weeks.flatMap((w: any) =>
-      Array.isArray(w.subTopics) ? w.subTopics : []
-    );
-    const match = allTopics.find((t: any) => t.id === topicId);
-    if (match) setSelectedTopic(match);
-  }, [searchParams, weeks]);
-
-  // Load topics + premium status 
+  // ─── Load topics + premium status ────────────────────────────────────────
   useEffect(() => {
     const loadInitialData = async () => {
       try {
@@ -121,7 +103,7 @@ export default function LessonNotePage() {
     loadInitialData();
   }, []);
 
-  //  Load note when topic changes 
+  // ─── Load note when topic changes ────────────────────────────────────────
   useEffect(() => {
     if (!selectedTopic?.id) return;
     if (generatedNote?.schemeSubTopicId === selectedTopic.id) return;
@@ -156,7 +138,7 @@ export default function LessonNotePage() {
 
   useEffect(() => { setEditLimitReached(false); }, [selectedTopic?.id]);
 
-  //  Premium gate 
+  // ─── Premium gate ─────────────────────────────────────────────────────────
   const handlePremiumAction = (action: () => void, feature: string) => {
     if (!isPremium) {
       setLockedFeature(feature);
@@ -166,7 +148,7 @@ export default function LessonNotePage() {
     action();
   };
 
-  // Reset to original 
+  // ─── Reset to original ────────────────────────────────────────────────────
   const handleResetToOriginal = async () => {
     if (!generatedNote?.originalContent) {
       toast.error("No original version found for this note.");
@@ -203,7 +185,7 @@ export default function LessonNotePage() {
     }
   };
 
-  // Generate / refine / regenerate 
+  // ─── Generate / refine / regenerate ──────────────────────────────────────
   const handleGenerate = async (isRefinement = false, forceRegenerate = false) => {
     if (!selectedTopic?.id) return;
 
@@ -297,7 +279,7 @@ export default function LessonNotePage() {
   };
 
   // ─── PDF export ──────────────────────────────────────────────────────────
-  // Uses iframe + browser native print (not html2canvas) to avoid oklch crash.
+  // Uses window.open + browser native print (not html2canvas) to avoid oklch crash.
   // @page { margin: 0mm } suppresses the browser's auto-added URL/date/title.
   // Body padding compensates so content still has margins on the page.
   const handleExportPDF = async () => {
@@ -308,84 +290,81 @@ export default function LessonNotePage() {
     try {
       const katexHref =
         Array.from(document.styleSheets)
-          .map((s) => { try { return s.href ?? ""; } catch { return ""; } })
-          .find((h) => h.includes("katex")) ?? "";
+          .map(s => { try { return s.href ?? ""; } catch { return ""; } })
+          .find(h => h.includes("katex")) ?? "";
 
-      const noteHTML = printRef.current.innerHTML;
+      const paperHTML = printRef.current.innerHTML;
+      const title = selectedTopic?.topicTitle ?? "Lesson Note";
 
-      const iframe = document.createElement("iframe");
-      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:794px;border:none;visibility:hidden;";
-      document.body.appendChild(iframe);
+      // window.open fixes blank pages on mobile — popup windows are fully
+      // rendered by the browser before printing, unlike iframes.
+      const printWindow = window.open("", "_blank", "width=900,height=650");
+      if (!printWindow) {
+        toast.error(
+          "Pop-up blocked. To save as PDF: tap the menu in your browser → Settings → Pop-ups → Allow for this site.",
+          { id: toastId, duration: 8000 }
+        );
+        return;
+      }
 
-      const iDoc = iframe.contentDocument!;
-      iDoc.open();
-      iDoc.write(`<!DOCTYPE html>
+      printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>${selectedTopic?.topicTitle ?? "Lesson Note"}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>${title}</title>
   ${katexHref ? `<link rel="stylesheet" href="${katexHref}"/>` : ""}
   <style>
-    @page {
-      size: A4;
-      margin: 0mm;
-    }
-    *, *::before, *::after {
-      box-sizing: border-box;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    body {
-      font-family: -apple-system, 'Inter', sans-serif;
-      font-size: 13px;
-      line-height: 1.7;
-      color: #1a1a1a;
-      background: #ffffff;
-      padding: 18mm 16mm;
-      margin: 0;
-    }
+    @page { size: A4; margin: 0mm; }
+    *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: -apple-system, "Inter", sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; background: #ffffff; padding: 18mm 16mm; margin: 0; }
     h1 { font-size: 20px; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 6px; }
-    h2 { font-size: 16px; font-weight: 700; margin: 20px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-    h3 { font-size: 14px; font-weight: 700; margin: 14px 0 4px; }
-    p  { margin: 6px 0; }
-    ul, ol { margin: 6px 0 6px 20px; }
+    h2 { font-size: 16px; font-weight: 700; margin: 18px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+    h3 { font-size: 13px; font-weight: 700; margin: 12px 0 4px; }
+    p  { margin: 5px 0; }
+    ul, ol { margin: 5px 0 5px 20px; }
     li { margin: 3px 0; }
     strong { font-weight: 700; }
     em { font-style: italic; }
-    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
-    th, td { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+    th, td { border: 1px solid #e5e7eb; padding: 5px 10px; text-align: left; }
     th { background: #f9fafb; font-weight: 600; }
-    hr { border: none; border-top: 1px solid #e5e7eb; margin: 14px 0; }
-    blockquote { border-left: 3px solid #ccc; margin: 8px 0; padding: 4px 12px; color: #555; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+    blockquote { border-left: 3px solid #ccc; margin: 6px 0; padding: 4px 12px; color: #555; }
     code { font-family: monospace; font-size: 11px; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
-    pre { background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 8px 0; overflow: hidden; }
-    .katex-display { margin: 12px 0; padding: 8px 12px; background: #f8fafc; border-radius: 4px; }
+    pre { background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 8px 0; }
+    .katex-display { margin: 10px 0; padding: 6px 12px; background: #f8fafc; border-radius: 4px; }
     .no-print { display: none !important; }
+
+    /* ── Mobile page-break rules ── */
+    @media print {
+      h1, h2, h3 { page-break-after: avoid; }
+      p, li { orphans: 3; widows: 3; }
+      section, .section { page-break-inside: avoid; }
+      table { page-break-inside: avoid; }
+      .page-break { page-break-before: always; }
+    }
   </style>
 </head>
-<body>${noteHTML}</body>
+<body>${paperHTML}</body>
 </html>`);
-      iDoc.close();
+      printWindow.document.close();
 
-      iframe.onload = () => {
-              const body = iframe.contentDocument?.body;
-      if (body) {
-        iframe.style.height = body.scrollHeight + "px";
-      }
+      printWindow.onload = () => {
+        // 500ms delay lets KaTeX, Mermaid diagrams and fonts fully paint
+        // before the print dialog opens — prevents cut-off content on mobile.
         setTimeout(() => {
           try {
-            iframe.contentWindow!.focus();
-            iframe.contentWindow!.print();
+            printWindow.focus();
+            printWindow.print();
             toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
           } catch (e) {
             console.error(e);
             toast.error("Print failed", { id: toastId });
           } finally {
-            setTimeout(() => {
-              if (document.body.contains(iframe)) document.body.removeChild(iframe);
-            }, 2000);
+            setTimeout(() => printWindow.close(), 2000);
           }
-        }, 800);
+        }, 500);
       };
 
     } catch (err) {

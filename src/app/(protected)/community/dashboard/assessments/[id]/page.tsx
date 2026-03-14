@@ -49,7 +49,6 @@ export default function AssessmentViewPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // ── PDF export — same iframe pattern as lesson note page ───────────────────
   const handleExportPDF = async () => {
     if (!paperRef.current || !assessment) return;
     const toastId = "pdf-export";
@@ -62,24 +61,30 @@ export default function AssessmentViewPage() {
           .find(h => h.includes("katex")) ?? "";
 
       const paperHTML = paperRef.current.innerHTML;
-      const title     = `${assessment.subject} ${assessment.classLevel} — ${assessment.type}`;
+      const title = `${assessment.subject} ${assessment.classLevel} — ${assessment.type}`;
 
-      const iframe = document.createElement("iframe");
-      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:794px;border:none;visibility:hidden;";
-      document.body.appendChild(iframe);
+      // window.open fixes blank pages on mobile — popup windows are fully
+      // rendered by the browser before printing, unlike iframes.
+      const printWindow = window.open("", "_blank", "width=900,height=650");
+      if (!printWindow) {
+        toast.error(
+          "Pop-up blocked. To save as PDF: tap the menu in your browser → Settings → Pop-ups → Allow for this site.",
+          { id: toastId, duration: 8000 }
+        );
+        return;
+      }
 
-      const iDoc = iframe.contentDocument!;
-      iDoc.open();
-      iDoc.write(`<!DOCTYPE html>
+      printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>${title}</title>
   ${katexHref ? `<link rel="stylesheet" href="${katexHref}"/>` : ""}
   <style>
     @page { size: A4; margin: 0mm; }
     *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: -apple-system, 'Inter', sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; background: #ffffff; padding: 18mm 16mm; margin: 0; }
+    body { font-family: -apple-system, "Inter", sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; background: #ffffff; padding: 18mm 16mm; margin: 0; }
     h1 { font-size: 18px; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 6px; }
     h2 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
     h3 { font-size: 13px; font-weight: 700; margin: 12px 0 4px; }
@@ -87,38 +92,50 @@ export default function AssessmentViewPage() {
     ul, ol { margin: 5px 0 5px 20px; }
     li { margin: 3px 0; }
     strong { font-weight: 700; }
+    em { font-style: italic; }
     table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
     th, td { border: 1px solid #e5e7eb; padding: 5px 10px; text-align: left; }
     th { background: #f9fafb; font-weight: 600; }
     hr { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+    blockquote { border-left: 3px solid #ccc; margin: 6px 0; padding: 4px 12px; color: #555; }
+    code { font-family: monospace; font-size: 11px; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
+    pre { background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 8px 0; }
     .katex-display { margin: 10px 0; padding: 6px 12px; background: #f8fafc; border-radius: 4px; }
     .no-print { display: none !important; }
+
+    /* ── Mobile page-break rules ── */
+    @media print {
+      h1, h2, h3 { page-break-after: avoid; }
+      p, li { orphans: 3; widows: 3; }
+      section, .section { page-break-inside: avoid; }
+      table { page-break-inside: avoid; }
+      .page-break { page-break-before: always; }
+    }
   </style>
 </head>
 <body>${paperHTML}</body>
 </html>`);
-      iDoc.close();
+      printWindow.document.close();
 
-      iframe.onload = () => {
-              const body = iframe.contentDocument?.body;
-      if (body) {
-        iframe.style.height = body.scrollHeight + "px";
-      }
+      printWindow.onload = () => {
+        // 500ms delay lets KaTeX, Mermaid diagrams and fonts fully paint
+        // before the print dialog opens — prevents cut-off content on mobile.
         setTimeout(() => {
           try {
-            iframe.contentWindow!.focus();
-            iframe.contentWindow!.print();
+            printWindow.focus();
+            printWindow.print();
             toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
           } catch (e) {
+            console.error(e);
             toast.error("Print failed", { id: toastId });
           } finally {
-            setTimeout(() => {
-              if (document.body.contains(iframe)) document.body.removeChild(iframe);
-            }, 2000);
+            setTimeout(() => printWindow.close(), 2000);
           }
-        }, 800);
+        }, 500);
       };
+
     } catch (err) {
+      console.error("PDF export error:", err);
       toast.error("PDF failed. Please try again.", { id: toastId });
     }
   };
@@ -155,7 +172,7 @@ export default function AssessmentViewPage() {
         <AlertCircle size={40} className="text-destructive mx-auto mb-4" />
         <p className="font-semibold text-foreground mb-1">Assessment not found</p>
         <p className="text-sm text-muted-foreground mb-6">{error ?? "This assessment does not exist or you don't have access."}</p>
-        <Link href="/community/assessments/[id]" className="text-sm font-bold text-primary hover:underline">
+        <Link href="/assessments" className="text-sm font-bold text-primary hover:underline">
           ← Back to Assessments
         </Link>
       </div>
