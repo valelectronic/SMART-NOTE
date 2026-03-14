@@ -327,6 +327,27 @@ export default function LessonNotePage() {
       // Extract KaTeX enabler script to a variable to avoid TypeScript
       // template-literal type errors and keep the HTML string clean.
       // btn null-check is inside the script string — safe at runtime.
+      // Set onload BEFORE document.write — some mobile browsers fire the
+      // load event synchronously during document.close(), so setting onload
+      // after close() means it's already missed.
+      printWindow.onload = () => {
+        if (isMobile) {
+          toast.success("Document ready — follow the instructions in the blue bar to save as PDF", { id: toastId, duration: 6000 });
+        } else {
+          setTimeout(() => {
+            try {
+              printWindow.focus();
+              printWindow.print();
+              toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
+              setTimeout(() => printWindow.close(), 2000);
+            } catch (e) {
+              console.error(e);
+              toast.error("Use your browser menu to print.", { id: toastId });
+            }
+          }, 500);
+        }
+      };
+
       const katexLoadScript = (isMobile && katexHref) ? `
   <script>
     (function() {
@@ -450,27 +471,20 @@ export default function LessonNotePage() {
 </html>`);
       printWindow.document.close();
 
-      printWindow.onload = () => {
-        setTimeout(() => {
+
+      // Fallback: if onload never fires (common on Android WebView),
+      // show the toast after a fixed delay so the teacher isn't stuck.
+      setTimeout(() => {
+        if (isMobile) {
+          toast.success("Document ready — follow the instructions in the blue bar to save as PDF", { id: toastId, duration: 6000 });
+        } else {
           try {
-            if (isMobile) {
-              // Mobile: document is fully visible — user uses OS native flow
-              // The "Open Print / Save as PDF" button in the banner is a
-              // user-initiated click which has higher browser permission
-              toast.success("Document ready — follow the instructions in the blue bar to save as PDF", { id: toastId, duration: 6000 });
-            } else {
-              // Desktop: auto-trigger print dialog
-              printWindow.focus();
-              printWindow.print();
-              toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
-              setTimeout(() => printWindow.close(), 2000);
-            }
-          } catch (e) {
-            console.error(e);
-            toast.error("Use your browser menu to print.", { id: toastId });
-          }
-        }, 500);
-      };
+            printWindow.focus();
+            printWindow.print();
+            toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
+          } catch (e) { /* already handled by onload */ }
+        }
+      }, 1500);
 
     } catch (err) {
       console.error("PDF export error:", err);
