@@ -201,7 +201,7 @@ export default function AssessmentPage() {
 
   // Fetch teacher's notes from dedicated endpoint
   useEffect(() => {
-    fetch("/api/notes")
+    fetch("/api/assessments_note")
       .then(r => r.json())
       .then(d => setNotes(d.lessonNotes ?? []))
       .catch(() => setError("Could not load your lesson notes. Please refresh."))
