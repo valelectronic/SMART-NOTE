@@ -63,16 +63,52 @@ export default function AssessmentViewPage() {
       const paperHTML = paperRef.current.innerHTML;
       const title = `${assessment.subject} ${assessment.classLevel} — ${assessment.type}`;
 
-      // window.open fixes blank pages on mobile — popup windows are fully
-      // rendered by the browser before printing, unlike iframes.
+      const isIOS     = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const isMobile  = isIOS || isAndroid;
+
       const printWindow = window.open("", "_blank", "width=900,height=650");
       if (!printWindow) {
         toast.error(
-          "Pop-up blocked. To save as PDF: tap the menu in your browser → Settings → Pop-ups → Allow for this site.",
+          "Pop-up blocked. Tap the menu in your browser → Settings → Pop-ups → Allow for this site.",
           { id: toastId, duration: 8000 }
         );
         return;
       }
+
+      // Platform-specific instructions — shown only on mobile, hidden when printing
+      const mobileBanner = isMobile ? `
+        <div class="mobile-banner">
+          <div class="banner-title">📄 Your document is ready</div>
+          <div class="banner-steps">
+            ${isIOS
+              ? `<span>On iPhone/iPad: tap the <strong>Share icon</strong> (box with arrow) at the bottom → <strong>Print</strong> → pinch outward on the preview to save as PDF</span>`
+              : `<span>On Android: tap the <strong>⋮ three-dot menu</strong> → <strong>Share</strong> → <strong>Print</strong> → tap the PDF icon to save</span>`
+            }
+          </div>
+          <button id="print-btn" class="banner-btn" onclick="window.print()" disabled style="opacity:0.5;cursor:not-allowed;">
+            ⏳ Loading equations...
+          </button>
+        </div>` : "";
+
+      const katexLoadScript = (isMobile && katexHref) ? `
+  <script>
+    (function() {
+      var btn = document.getElementById('print-btn');
+      if (!btn) return;
+      var katexLink = document.querySelector('link[href*="katex"]');
+      function enableBtn() {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.textContent = 'Open Print / Save as PDF';
+      }
+      if (!katexLink) { enableBtn(); return; }
+      if (katexLink.sheet) { enableBtn(); return; }
+      katexLink.addEventListener('load', enableBtn);
+      setTimeout(enableBtn, 2000);
+    })();
+  <\/script>` : '';
 
       printWindow.document.write(`<!DOCTYPE html>
 <html>
@@ -83,8 +119,37 @@ export default function AssessmentViewPage() {
   ${katexHref ? `<link rel="stylesheet" href="${katexHref}"/>` : ""}
   <style>
     @page { size: A4; margin: 0mm; }
-    *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: -apple-system, "Inter", sans-serif; font-size: 13px; line-height: 1.7; color: #1a1a1a; background: #ffffff; padding: 18mm 16mm; margin: 0; }
+
+    /* ── Screen styles (mobile preview) ── */
+    @media screen {
+      body { max-width: 780px; margin: 0 auto; padding: 16px; }
+    }
+
+    /* ── Print / PDF styles ── */
+    @media print {
+      .mobile-banner { display: none !important; }
+      h1, h2, h3 { page-break-after: avoid; }
+      p, li { orphans: 3; widows: 3; }
+      section, .section { page-break-inside: avoid; }
+      table { page-break-inside: avoid; }
+    }
+
+    /* ── Base styles (screen + print) ── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      /* System font stack — never fails to load, looks native on every device */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #ffffff;
+      padding: 18mm 16mm;
+      margin: 0;
+    }
     h1 { font-size: 18px; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 6px; }
     h2 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
     h3 { font-size: 13px; font-weight: 700; margin: 12px 0 4px; }
@@ -98,38 +163,75 @@ export default function AssessmentViewPage() {
     th { background: #f9fafb; font-weight: 600; }
     hr { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
     blockquote { border-left: 3px solid #ccc; margin: 6px 0; padding: 4px 12px; color: #555; }
-    code { font-family: monospace; font-size: 11px; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
+    code { font-family: "Courier New", Courier, monospace; font-size: 11px; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
     pre { background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 8px 0; }
     .katex-display { margin: 10px 0; padding: 6px 12px; background: #f8fafc; border-radius: 4px; }
     .no-print { display: none !important; }
 
-    /* ── Mobile page-break rules ── */
-    @media print {
-      h1, h2, h3 { page-break-after: avoid; }
-      p, li { orphans: 3; widows: 3; }
-      section, .section { page-break-inside: avoid; }
-      table { page-break-inside: avoid; }
-      .page-break { page-break-before: always; }
+    /* ── Mobile banner styles ── */
+    .mobile-banner {
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      background: #1d4ed8;
+      color: #fff;
+      padding: 14px 16px;
+      margin: -18mm -16mm 24px -16mm;
+      font-size: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+    .banner-title {
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 6px;
+    }
+    .banner-steps {
+      font-size: 13px;
+      opacity: 0.92;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .banner-btn {
+      display: inline-block;
+      background: #ffffff;
+      color: #1d4ed8;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      /* User-initiated click — higher browser permission than auto print() */
+    }
+    .banner-btn:active { opacity: 0.85; }
   </style>
 </head>
-<body>${paperHTML}</body>
+<body>
+  \${mobileBanner}
+  \${paperHTML}
+  \${katexLoadScript}
+</body>
 </html>`);
       printWindow.document.close();
 
       printWindow.onload = () => {
-        // 500ms delay lets KaTeX, Mermaid diagrams and fonts fully paint
-        // before the print dialog opens — prevents cut-off content on mobile.
         setTimeout(() => {
           try {
-            printWindow.focus();
-            printWindow.print();
-            toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
+            if (isMobile) {
+              // Mobile: document is fully visible — user uses OS native flow
+              // The "Open Print / Save as PDF" button in the banner is a
+              // user-initiated click which has higher browser permission
+              toast.success("Document ready — follow the instructions in the blue bar to save as PDF", { id: toastId, duration: 6000 });
+            } else {
+              // Desktop: auto-trigger print dialog
+              printWindow.focus();
+              printWindow.print();
+              toast.success("Print dialog opened — select 'Save as PDF'", { id: toastId, duration: 4000 });
+              setTimeout(() => printWindow.close(), 2000);
+            }
           } catch (e) {
             console.error(e);
-            toast.error("Print failed", { id: toastId });
-          } finally {
-            setTimeout(() => printWindow.close(), 2000);
+            toast.error("Use your browser menu to print.", { id: toastId });
           }
         }, 500);
       };
