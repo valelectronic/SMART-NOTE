@@ -25,6 +25,7 @@ function NoteLoadingSkeleton() {
   );
 }
 
+
 function EditLimitBanner({ onReset, isResetting }: { onReset: () => void; isResetting: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -42,6 +43,7 @@ function EditLimitBanner({ onReset, isResetting }: { onReset: () => void; isRese
     </div>
   );
 }
+
 
 export default function LessonNotePage() {
   const [weeks, setWeeks] = useState<any[]>([]);
@@ -63,7 +65,7 @@ export default function LessonNotePage() {
   const printRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
 
-  // ─── Auto-select topic from ?topic= URL param (e.g. from dashboard) ──────
+  // ─── Auto-select topic from ?topic= URL param (e.g. from dashboard)
   useEffect(() => {
     const topicId = searchParams?.get("topic");
     if (!topicId || weeks.length === 0) return;
@@ -77,7 +79,7 @@ export default function LessonNotePage() {
     if (match) setSelectedTopic(match);
   }, [searchParams, weeks]);
 
-  // ─── Load topics + premium status ────────────────────────────────────────
+  // Load topics + premium status 
   useEffect(() => {
     const loadInitialData = async () => {
       try {
@@ -119,7 +121,7 @@ export default function LessonNotePage() {
     loadInitialData();
   }, []);
 
-  // ─── Load note when topic changes ────────────────────────────────────────
+  //  Load note when topic changes 
   useEffect(() => {
     if (!selectedTopic?.id) return;
     if (generatedNote?.schemeSubTopicId === selectedTopic.id) return;
@@ -154,7 +156,7 @@ export default function LessonNotePage() {
 
   useEffect(() => { setEditLimitReached(false); }, [selectedTopic?.id]);
 
-  // ─── Premium gate ─────────────────────────────────────────────────────────
+  //  Premium gate 
   const handlePremiumAction = (action: () => void, feature: string) => {
     if (!isPremium) {
       setLockedFeature(feature);
@@ -164,7 +166,7 @@ export default function LessonNotePage() {
     action();
   };
 
-  // ─── Reset to original ────────────────────────────────────────────────────
+  // Reset to original 
   const handleResetToOriginal = async () => {
     if (!generatedNote?.originalContent) {
       toast.error("No original version found for this note.");
@@ -201,7 +203,7 @@ export default function LessonNotePage() {
     }
   };
 
-  // ─── Generate / refine / regenerate ──────────────────────────────────────
+  // Generate / refine / regenerate 
   const handleGenerate = async (isRefinement = false, forceRegenerate = false) => {
     if (!selectedTopic?.id) return;
 

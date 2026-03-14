@@ -23,7 +23,7 @@ import {
 } from "lucide-react"; 
 import { cn } from "@/lib/utils";
 
-const MAX_SUBJECTS = 3;
+const MAX_SUBJECTS = 1;
 
 const COMMON_SUBJECTS = ["Mathematics", "English Language", "Physics", "Chemistry", "Biology", "Economics", "History", "Civic Education"];
 
@@ -74,33 +74,22 @@ export default function PageThreePreferences({ onNext, onBack, data, setData, lo
 
     const toggleSubject = (subject: string) => {
         const isSelected = data.subjectTaught.includes(subject);
-        const currentCount = data.subjectTaught.length;
-
         if (isSelected) {
-            setData({
-                subjectTaught: data.subjectTaught.filter(s => s !== subject)
-            });
-        } else if (currentCount < MAX_SUBJECTS) {
-            setData({
-                subjectTaught: [...data.subjectTaught, subject],
-            });
+            // Deselect
+            setData({ subjectTaught: [] });
+        } else {
+            // Replace — only 1 subject allowed, clicking another swaps it instantly
+            setData({ subjectTaught: [subject] });
         }
     };
     
     const handleAddCustomSubject = () => {
         const subject = customSubjectInput.trim();
-        
-        if (subject && 
-            !data.subjectTaught.map(s => s.toLowerCase()).includes(subject.toLowerCase()) && 
-            data.subjectTaught.length < MAX_SUBJECTS) {
-            
-            const capitalizedSubject = subject.charAt(0).toUpperCase() + subject.slice(1);
-            
-            setData({
-                subjectTaught: [...data.subjectTaught, capitalizedSubject],
-            });
-            setCustomSubjectInput("");
-        }
+        if (!subject) return;
+        const capitalizedSubject = subject.charAt(0).toUpperCase() + subject.slice(1);
+        // Replace whatever is selected — only 1 subject allowed
+        setData({ subjectTaught: [capitalizedSubject] });
+        setCustomSubjectInput("");
     };
 
     const handleRemoveSubject = (subject: string) => {
@@ -141,11 +130,11 @@ export default function PageThreePreferences({ onNext, onBack, data, setData, lo
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <label className="text-sm font-semibold text-foreground">
-                                Subjects You Teach
+                                Subject You Teach
                             </label>
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                                    {data.subjectTaught.length}/{MAX_SUBJECTS}
+                                    {data.subjectTaught.length > 0 ? "1 selected" : "none selected"}
                                 </span>
                                 {isSubjectValid && <CheckCircle className="h-4 w-4 text-green-500" />}
                             </div>
@@ -177,13 +166,13 @@ export default function PageThreePreferences({ onNext, onBack, data, setData, lo
                             </div>
                         ) : (
                             <div className="p-4 border border-dashed rounded-lg bg-muted/10 text-center">
-                                <p className="text-sm text-muted-foreground">Select up to 3 subjects below</p>
+                                <p className="text-sm text-muted-foreground">Select one subject below</p>
                             </div>
                         )}
 
                         {/* Quick-Select Buttons */}
                         <div className="space-y-3">
-                            <p className="text-sm text-muted-foreground">Common Subjects</p>
+                            <p className="text-sm text-muted-foreground">Common Subjects — pick one</p>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 {COMMON_SUBJECTS.map((subject) => {
                                     const isSelected = data.subjectTaught.includes(subject);
@@ -211,7 +200,7 @@ export default function PageThreePreferences({ onNext, onBack, data, setData, lo
                         
                         {/* Custom Subject Input */}
                         <div className="space-y-2">
-                            <p className="text-sm text-muted-foreground">Add Custom Subject</p>
+                            <p className="text-sm text-muted-foreground">Or type a custom subject — replaces current selection</p>
                             <div className="flex gap-2">
                                 <Input
                                     placeholder="Type a subject name..."
@@ -223,13 +212,13 @@ export default function PageThreePreferences({ onNext, onBack, data, setData, lo
                                             handleAddCustomSubject();
                                         }
                                     }}
-                                    disabled={data.subjectTaught.length >= MAX_SUBJECTS}
+                                    disabled={false}
                                     className="flex-1"
                                 />
                                 <Button 
                                     type="button" 
                                     onClick={handleAddCustomSubject}
-                                    disabled={!customSubjectInput.trim() || data.subjectTaught.length >= MAX_SUBJECTS}
+                                    disabled={!customSubjectInput.trim()}
                                     size="sm"
                                     className="gap-1"
                                 >
@@ -250,7 +239,7 @@ export default function PageThreePreferences({ onNext, onBack, data, setData, lo
                             {data.subjectTaught.length >= MAX_SUBJECTS && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <AlertCircle className="h-4 w-4" />
-                                    Maximum of {MAX_SUBJECTS} subjects selected
+                                    You can only select 1 subject — remove it first to change
                                 </div>
                             )}
                         </div>
