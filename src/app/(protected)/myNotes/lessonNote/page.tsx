@@ -297,6 +297,18 @@ export default function LessonNotePage() {
       const isAndroid = /Android/i.test(navigator.userAgent);
       const isMobile  = isIOS || isAndroid;
 
+      // Opera Mini in Extreme mode proxies all requests through its servers
+      // and blocks script-generated Blob URLs — PDF will silently fail.
+      // Warn the teacher early so they know to switch browsers.
+      const isOperaMini = /Opera Mini/i.test(navigator.userAgent);
+      if (isOperaMini) {
+        toast.error(
+          "Opera Mini does not support PDF export. Please open this page in Chrome or Safari to download your PDF.",
+          { id: toastId, duration: 10000 }
+        );
+        return;
+      }
+
       // Build platform instruction text using plain string concat — avoids
       // nested template literal errors that TypeScript cannot type-check.
       const stepText = isIOS
