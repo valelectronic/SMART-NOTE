@@ -482,136 +482,159 @@ function buildSecondaryPremiumPrompt(ctx: any, headings: string[]): string {
   const terminologyNote = getTerminologyNote(subject);
   const depthNote  = level === "junior"
     ? "Write for JSS students (ages 10–14). Simple English. Define every new term the first time it appears."
-    : "Write for SSS students (ages 15–18) preparing for WAEC and JAMB. Precise terminology. Every definition must be exam-worthy.";
-
+    : "Write for SSS students (ages 15–18) preparing for WAEC and JAMB. Use precise subject terminology. Every definition must be exam-worthy.";
+ 
+  // Premium section IV scaffold — same Nigerian textbook format as free,
+  // but richer: longer explanation, 5 key points instead of 4,
+  // a Nigerian application paragraph, and a 📌 KEY POINT callout per sub-topic.
+  // TOKEN RULE: if content gets long, shorten each sub-topic's Explanation
+  // to 2 sentences — but NEVER skip a sub-topic or a section.
   const sectionIV = headings.length > 0
     ? headings.map((h, i) => `
 ### ${i + 1}. ${h.toUpperCase()}
-
-**Definition:** <Write one precise, exam-ready sentence defining ${h}.>
-
+ 
+**Definition:** <Write one precise, exam-ready sentence defining ${h}. Use the exact terminology a ${examFocus} examiner expects.>
+ 
+**Explanation:**
+ 
+<Write 3 sentences expanding on the definition. Name a specific Nigerian institution, city, market, or event as a real-life example. If running short on space, reduce to 2 sentences — but never skip this block.>
+ 
 **Key Points:**
-
-**1. <Name the first key aspect of ${h}>:** <1–2 sentences explaining it. Include a Nigerian example where applicable.>
-
-**2. <Name the second key aspect of ${h}>:** <1–2 sentences explaining it.>
-
-**3. <Name the third key aspect of ${h}>:** <1–2 sentences explaining it.>
-
-> 📌 **${examFocus} KEY POINT:** <State the single most-tested examinable fact about ${h}. Be specific — e.g. "The CBN was established by the CBN Act of 1958.">`
+ 
+1. <First key point — complete sentence, at least 15 words, Nigerian example or institution.>
+2. <Second key point — complete sentence, at least 15 words. Explain WHY or HOW, not just WHAT.>
+3. <Third key point — complete sentence, at least 15 words.>
+4. <Fourth key point — complete sentence, at least 15 words.>
+5. <Fifth key point — complete sentence, at least 15 words. State a consequence, application, or implication.>
+ 
+**Nigerian Application:** <Two sentences showing exactly how ${h} works in Nigerian daily life, economy, or society. Name a real place or institution.>
+ 
+> 📌 **${examFocus} KEY POINT:** <The single most-tested fact about ${h} — be specific, e.g. "The CBN was established by the CBN Act of 1958 and has sole authority to issue legal tender in Nigeria.">`
     ).join("\n\n---\n\n")
     : `<Identify 5 NERDC-approved sub-topics for ${ctx.topic}. Apply the exact scaffold above to each one.>`;
-
-  return `You are a Nigerian Master Teacher with 20 years' experience writing for Longman, Evans, and Learn Africa textbooks. You have marked ${examFocus} scripts as a Chief Examiner.
-
-Your task: write a complete, print-ready lesson note matching the quality of Longman, Macmillan, and Evans Nigerian textbooks.
-
+ 
+  return `You are a Nigerian Master Teacher writing a premium lesson note for ${subject}. Your notes are used in schools across all 36 states. They match the quality of Longman, Evans, and Learn Africa textbooks.
+ 
 ${depthNote}
-
+ 
+**SUBJECT TERMINOLOGY:** ${terminologyNote}
+ 
 ---
-
-## ABSOLUTE RULES — violating any of these makes the note unusable:
-
-0. **SUBJECT TERMINOLOGY:** ${terminologyNote}
-
-1. **NO PEDAGOGY LABELS.** Never write "Teacher's Activity", "Students' Activity", "Note Detail", "Classroom Interaction", or "Instructional Presentation".
-
-2. **NIGERIAN CONTEXT IS MANDATORY.** Use ₦ for currency (never "Naira" or "N"). Cite Nigerian institutions (CBN, INEC, NNPC, NAFDAC, NSE). Use Nigerian cities and daily Nigerian life.
-
-3. **FILL EVERY SLOT.** Every <angle bracket> is a SLOT. Replace every single one with real content.
-
-4. **EXAM-FOCUSED.** Every sub-topic must end with a > 📌 **${examFocus} KEY POINT** block. Non-negotiable.
-
-5. **DIAGRAM RULES.** Mermaid: \`graph TD\` only, max 4-word node labels, NO special characters. Wrap in \`\`\`mermaid ... \`\`\`.
-
-6. **COMPLETE ALL 9 SECTIONS.** If running long, compress Section V (Summary) — never cut VIII or IX.
-
-7. **EVALUATION RULE.** Question 5 is Short Answer — question ONLY, no answer.
-
+ 
+## STRICT RULES — follow every one without exception:
+ 
+1. **NO PEDAGOGY LABELS.** Never write "Teacher's Activity", "Students' Activity", "Note Detail", or "Classroom Interaction". Write content the student reads directly, like a textbook.
+ 
+2. **FILL EVERY SLOT.** Every <angle bracket> is a slot. Replace every single one with real content. Never leave angle bracket text in your output.
+ 
+3. **NIGERIAN CONTEXT IS MANDATORY.** Use ₦ for currency (never "Naira" or "N"). Every sub-topic must name at least one real Nigerian institution, city, or market. Generic examples are not acceptable.
+ 
+4. **NUMBERED LISTS.** Use numbered lists (1. 2. 3.) for key points. Every item must be a complete sentence of at least 15 words.
+ 
+5. **COMPLETE ALL 9 SECTIONS — THIS IS THE MOST IMPORTANT RULE.** Sections I through IX must ALL appear in your output. If you are running low on space, shorten each sub-topic's Explanation to 2 sentences and each Key Points list to 4 items. NEVER cut or skip a section. A note missing any section is completely unusable.
+ 
+6. **TOKEN MANAGEMENT — READ THIS BEFORE WRITING:**
+   - After finishing each sub-topic, ask: "Have I used too many words? Do I still have space for all remaining sub-topics plus Sections V–IX?"
+   - If the answer is yes — immediately write shorter Explanations (2 sentences) and shorter Key Points (4 items, 15 words each) for all remaining sub-topics.
+   - Sections V, VI, VII, VIII, IX must always be written in full — never compressed or skipped.
+ 
+7. **EXAM-FOCUSED.** Every sub-topic must end with a > 📌 **${examFocus} KEY POINT** block. Non-negotiable.
+ 
+8. **MERMAID DIAGRAM RULES.** Use \`graph TD\` only. Max 4-word node labels. NO special characters inside node labels. Wrap in \`\`\`mermaid ... \`\`\`.
+ 
+9. **MINIMUM LENGTH:** 1200 words. Write detailed, complete content — this is a premium note.
+ 
 ---
-
+ 
 Write the complete lesson note now. Copy the header EXACTLY.
-
+ 
 ${header}
-
+ 
 ---
-
+ 
 ## I. BEHAVIOURAL OBJECTIVES
-
+ 
 By the end of this lesson, students should be able to:
-
-1. Define ${ctx.topic} accurately in their own words.
-2. Identify and explain the key components of ${ctx.topic}.
-3. Apply the knowledge of ${ctx.topic} to real-life Nigerian situations.
+ 
+1. Define ${ctx.topic} accurately using correct subject terminology.
+2. Identify and explain the key features and functions of ${ctx.topic}.
+3. Apply knowledge of ${ctx.topic} to real-life Nigerian situations.
 4. Answer ${examFocus} theory and objective questions on ${ctx.topic} correctly.
-5. <Write one more measurable objective specific to this exact topic.>
-
+5. <Write one specific, measurable objective for this exact topic.>
+ 
 ---
-
+ 
 ## II. PREVIOUS KNOWLEDGE
-
+ 
 Students have previously learned about <name the immediately preceding topic in the scheme of work>. This lesson builds directly on that foundation.
-
+ 
 ---
-
+ 
 ## III. INSTRUCTIONAL MATERIALS
-
+ 
 - <One specific physical aid, e.g. "Wall chart showing the structure of the Nigerian Banking System">
 - <Textbook reference with chapter and page numbers>
 - <One additional resource: newspaper clipping, specimen, sample document, or model>
-
+ 
 ---
-
+ 
 ## IV. LESSON CONTENT
-
+ 
 ${sectionIV}
-
+ 
 ---
-
+ 
 ## V. SUMMARY
-
-<Write maximum 3 bullet points. A student must be able to revise from these 3 points alone the night before the exam.>
-
+ 
+<Write 5 bullet points — one per sub-topic. Each must be a complete sentence capturing the key exam fact for that sub-topic.>
+ 
 ---
-
+ 
 ## VI. SUMMARY DIAGRAM
-
+ 
 \`\`\`mermaid
 graph TD
 <Write a simple flowchart summarising ${ctx.topic}. Max 4-word node labels. NO special characters.>
 \`\`\`
 *Figure 1: Visual summary of ${ctx.topic}*
-
+ 
 ---
-
+ 
 ## VII. EVALUATION (CLASS WORK)
-
-1. **(${examFocus} Theory — 5 marks):** <Define or explain — e.g. "Define ${ctx.topic} and state TWO of its functions.">
-
-2. **(${examFocus} Theory — 5 marks):** <List/state — e.g. "State THREE importance of ${ctx.topic} to the Nigerian economy.">
-
+ 
+1. **(${examFocus} Theory — 5 marks):** <Define ${ctx.topic} and state TWO of its functions or features.>
+ 
+2. **(${examFocus} Theory — 5 marks):** <State THREE ways ${ctx.topic} affects Nigeria. OR Distinguish between two key concepts from this lesson.>
+ 
 3. **(${examFocus} Objective):** <Question stem>
    - A) <option>  B) <option>  C) <option>  D) <option>
-
+ 
 4. **(${examFocus} Objective):** <Question stem>
    - A) <option>  B) <option>  C) <option>  D) <option>
-
-5. **(Short Answer — question ONLY, no answer):** <One direct factual recall question.>
-
+ 
+5. **(Short Answer):** <One direct factual question — question ONLY, no answer.>
+ 
 ---
-
+ 
 ## VIII. ASSIGNMENT
-
+ 
 ${getAssignmentRule(level)}
-
+ 
 ---
-
+ 
 ## IX. REFERENCE BOOKS
-
+ 
 ${getAllReferences(subject, classLevel)}
-
+ 
 ---
-[SYSTEM ENFORCEMENT: Confirm: no pedagogy labels, every <angle bracket slot> replaced, every sub-topic ends with 📌 KEY POINT, ₦ for all currency.]`;
+[SYSTEM ENFORCEMENT: Before submitting, confirm ALL of the following:
+- No <angle bracket> slots remain unfilled
+- No pedagogy labels anywhere
+- Every sub-topic ends with 📌 KEY POINT
+- ₦ used for all currency
+- All 9 sections present: I II III IV V VI VII VIII IX
+- Mermaid diagram written in Section VI
+- Evaluation has 5 questions in Section VII]`;
 }
 
 function buildPrimaryPrompt(ctx: any, headings: string[]): string {
